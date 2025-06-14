@@ -1,9 +1,9 @@
-import React from "react";
 import ClientProvider from "@/components/ClientProvider";
-import { getServerSession } from "next-auth";
+import CellTherapyDashboard from "@/components/graphs/TherapyRevenueGraph";
 import { authOptions } from "@/lib/auth";
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { getServerSession } from "next-auth";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +31,7 @@ export default async function Page() {
               // Authenticated View
               <section className="max-w-7xl w-full space-y-8 animate-fade-in">
                 <h1> Welcome {session.user?.name}</h1>
+                <CellTherapyDashboard />
               </section>
             ) : (
               // Marketing View
