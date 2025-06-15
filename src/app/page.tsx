@@ -1,5 +1,5 @@
 import ClientProvider from "@/components/ClientProvider";
-import CellTherapyDashboard from "@/components/graphs/TherapyRevenueGraph";
+import CellTherapyDashboard from "@/components/graphs/CellTherapyDashboard";
 import { authOptions } from "@/lib/auth";
 import { ArrowRight } from "lucide-react";
 import { getServerSession } from "next-auth";
