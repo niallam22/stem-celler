@@ -2,13 +2,13 @@
 
 Hi! If you're at this repo, you've probably seen one of my AI coding videos and want to try some of those techniques yourself. If you have no clue what I'm talking about, here's a good video to show you my approach and how to best use this repo: https://youtu.be/gXmakVsIbF0
 
-You can also just use this with your own techniques, that's cool too. 
+You can also just use this with your own techniques, that's cool too.
 
 You can follow the Getting Started instructions below to start using this stack right away. I've found that using a checklist of tasks in the .cursor-tasks.md file is a great way to make a lot of quick and effective progress with AI Coding. I personally use Cursor in Composer Agent mode with Sonnet 3.7, but feel free to use your AI coding tool of choice.
 
 If you need to create the checklist, here are some good prompts to use to go from a high-level idea to a full checklist of stories and tasks: https://chatgpt.com/share/67be0a59-e484-800d-a078-346b2c29d727
 
-You can also use the template in .cursor-template.xml to generate the task list for existing repos. I personally use RepoPrompt to convert the files into a pastable string, but repomix.com is a good option as well. 
+You can also use the template in .cursor-template.xml to generate the task list for existing repos. I personally use RepoPrompt to convert the files into a pastable string, but repomix.com is a good option as well.
 
 # 🚀 Next.js Modern Stack Template
 
@@ -27,8 +27,8 @@ This template includes [Next.js 14](https://nextjs.org/) with the App Router, [S
 - [**Next.js 14**](https://nextjs.org/) - React framework with App Router
 - [**TypeScript**](https://www.typescriptlang.org/) - Type safety throughout
 - [**tRPC**](https://trpc.io/) - End-to-end type-safe APIs
-- [**Prisma**](https://www.prisma.io/) - Database ORM and schema management
-- [**NextAuth.js**](https://next-auth.js.org/) - Authentication with Prisma adapter
+- [**Drizzle ORM**](https://orm.drizzle.team/) - Type-safe ORM with SQL-like queries
+- [**NextAuth.js**](https://next-auth.js.org/) - Authentication with Drizzle adapter
 - [**Supabase**](https://supabase.com) - Postgres database with realtime and auth
 
 ### 🎨 UI & Styling
@@ -78,7 +78,11 @@ npm install
 4. Set up your database:
 
 ```bash
-npx prisma migrate dev
+# Create a new migration
+npm run db:migrate "initial_setup"
+
+# Apply migrations to local database
+npm run db:reset
 ```
 
 5. Start the development server:
@@ -89,6 +93,31 @@ npm run dev
 
 Visit [http://localhost:3000](http://localhost:3000) to see your app.
 
+## 🗄️ Database Management
+
+This project uses Drizzle ORM with Supabase for database management. Available commands:
+
+```bash
+# Start db
+supbase start
+
+# Create a new migration from schema changes
+npm run db:migrate "migration_name"
+
+# Push schema changes directly to database (development)
+npm run db:push
+
+# Reset local database and apply all migrations
+npm run db:reset
+```
+
+### Workflow
+
+1. **Modify schema**: Edit `src/lib/db/schema.ts`
+2. **Generate migration**: `npm run db:migrate "describe_your_changes"`
+3. **Test locally**: `npm run db:reset`
+4. **Deploy**: Commit migration files and push to production
+
 ## 📁 Project Structure
 
 - `app/` - Next.js app router pages and API routes
@@ -98,7 +127,8 @@ Visit [http://localhost:3000](http://localhost:3000) to see your app.
     - `api/` - tRPC routers
     - `utils/` - Shared utilities
   - `stories/` - Storybook files
-- `prisma/` - Database schema
+- `src/lib/db/` - Database schema and configuration
+- `supabase/migrations/` - Database migrations
 
 ## 🚀 Deployment
 
@@ -126,11 +156,14 @@ This template is optimized for deployment on [Vercel](https://vercel.com).
 
 ### Post-Deployment
 
-1. Run database migrations in the Vercel deployment:
+1. Run database migrations in production:
 
 ```bash
-npx vercel env pull .env.production.local  # Pull production env vars
-npx prisma migrate deploy                  # Deploy migrations to production
+# Push schema directly to production database
+npm run db:push
+
+# Or apply Supabase migrations if using self-hosted Supabase
+supabase db push --include-all
 ```
 
 2. Set up your custom domain in Vercel (optional):

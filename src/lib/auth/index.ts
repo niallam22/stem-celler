@@ -1,5 +1,5 @@
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@/lib/db";
+import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import { db } from "@/lib/db";
 import {
   getServerSession,
   type NextAuthOptions,
@@ -58,7 +58,7 @@ declare module "next-auth" {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: DrizzleAdapter(db),
   providers: [
     EmailProvider({
       server: {
@@ -86,8 +86,8 @@ export const authOptions: NextAuthOptions = {
         // Enable this to restrict sign-ins to certain domains or allowlist
         const domainCheck = ALLOWED_DOMAINS.some((d) => email.endsWith(d));
         if (!domainCheck) {
-          const inAllowlist = await prisma.allowlist.findUnique({
-            where: { email },
+          const inAllowlist = await db.query.allowlist.findFirst({
+            where: (allowlist, { eq }) => eq(allowlist.email, email),
           });
 
           if (!inAllowlist) {

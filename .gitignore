@@ -46,3 +46,5 @@ next-env.d.ts
 .cursor-scratchpad
 
 *storybook.log
+
+claude.md
