@@ -138,7 +138,7 @@ export const therapyApprovals: TherapyApproval[] = [
   {
     id: "KYM_BALL_US",
     therapy_id: "KYMRIAH",
-    disease_id: "Pediatric B-cell ALL",
+    disease_id: "PEDIATRIC_B_ALL",
     region: "US",
     approval_date: "2017-08-30",
     approval_type: "Full",
@@ -149,7 +149,7 @@ export const therapyApprovals: TherapyApproval[] = [
   {
     id: "KYM_DLBCL_US",
     therapy_id: "KYMRIAH",
-    disease_id: "Adult DLBCL",
+    disease_id: "DLBCL",
     region: "US",
     approval_date: "2018-05-01",
     approval_type: "Full",
@@ -160,7 +160,7 @@ export const therapyApprovals: TherapyApproval[] = [
   {
     id: "KYM_BALL_EU",
     therapy_id: "KYMRIAH",
-    disease_id: "Pediatric B-cell ALL",
+    disease_id: "PEDIATRIC_B_ALL",
     region: "Europe",
     approval_date: "2018-08-22",
     approval_type: "Conditional",
@@ -171,7 +171,7 @@ export const therapyApprovals: TherapyApproval[] = [
   {
     id: "KYM_DLBCL_EU",
     therapy_id: "KYMRIAH",
-    disease_id: "Adult DLBCL",
+    disease_id: "DLBCL",
     region: "Europe",
     approval_date: "2018-12-20",
     approval_type: "Conditional",

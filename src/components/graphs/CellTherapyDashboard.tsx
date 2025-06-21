@@ -2,13 +2,21 @@
 import { useMemo, useState } from "react";
 
 // Import graph components
-import ApprovalsByProduct from "./ApprovalsByProduct";
-import ProductsByDisease from "./ProductsByDisease";
+import ApprovalsByProduct, {
+  ApprovalsByProductData,
+} from "./ApprovalsByProduct";
+import ProductsByDisease, { ProductsByDiseaseData } from "./ProductsByDisease";
 import RevenueByTherapy from "./RevenueByTherapy";
 
 // Import data
 import { getTherapyColor } from "@/lib/colour-utils";
-import { therapies, therapyRevenue } from "./therapy-data";
+import {
+  diseases,
+  therapies,
+  therapyApprovals,
+  therapyRevenue,
+} from "./therapy-data";
+import TreatmentCenterMap from "./TreatmentCenterMap";
 
 // Helper functions
 const periodToDate = (period: string): Date => {
@@ -65,20 +73,74 @@ interface AggregatedData {
   therapies: Record<string, TherapyMetrics>;
 }
 
+const computeAvailableOptions = (data: {
+  therapies: Array<{ id: string; mechanism: string; manufacturer: string }>;
+  therapyRevenue: Array<{ region: string }>;
+  therapyApprovals: Array<{
+    approval_type: string;
+    regulatory_body: string;
+    region: string;
+    disease_id: string;
+  }>;
+}) => {
+  return {
+    therapies: [...new Set(data.therapies.map((t) => t.id))],
+    regions: [...new Set(data.therapyRevenue.map((item) => item.region))],
+    approvalTypes: [
+      ...new Set(data.therapyApprovals.map((a) => a.approval_type)),
+    ],
+    regulatoryBodies: [
+      ...new Set(data.therapyApprovals.map((a) => a.regulatory_body)),
+    ],
+    diseaseIndications: [
+      ...new Set(data.therapyApprovals.map((a) => a.disease_id)),
+    ],
+    mechanisms: [...new Set(data.therapies.map((t) => t.mechanism))],
+    manufacturers: [...new Set(data.therapies.map((t) => t.manufacturer))],
+    approvalRegions: [...new Set(data.therapyApprovals.map((a) => a.region))],
+  };
+};
+
 export default function CellTherapyDashboard() {
   // === STATE MANAGEMENT ===
+  const availableOptions = useMemo(
+    () =>
+      computeAvailableOptions({
+        therapies,
+        therapyRevenue,
+        therapyApprovals,
+      }),
+    [] // Static data - compute once when component mounts
+  );
 
   // Revenue chart state
   const [viewMode, setViewMode] = useState<"revenue" | "patients">("revenue");
-  const [selectedRegions, setSelectedRegions] = useState<string[]>([
-    "US",
-    "Europe",
-    "Other",
-  ]);
-  const [selectedTherapies, setSelectedTherapies] = useState<string[]>([
-    "YESCARTA",
-    "KYMRIAH",
-  ]);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>(
+    () => availableOptions.regions
+  );
+  const [selectedTherapies, setSelectedTherapies] = useState<string[]>(
+    () => availableOptions.therapies
+  );
+
+  // ApprovalsByProduct chart state
+  const [selectedApprovalTypes, setSelectedApprovalTypes] = useState<string[]>(
+    () => availableOptions.approvalTypes
+  );
+  const [selectedRegulatoryBodies, setSelectedRegulatoryBodies] = useState<
+    string[]
+  >(() => availableOptions.regulatoryBodies);
+
+  const [selectedDiseaseIndications, setSelectedDiseaseIndications] = useState<
+    string[]
+  >(() => availableOptions.diseaseIndications);
+
+  // ProductsByDisease chart state
+  const [selectedRegionsForDisease, setSelectedRegionsForDisease] = useState<
+    string[]
+  >(() => availableOptions.approvalRegions);
+  const [selectedMechanisms, setSelectedMechanisms] = useState<string[]>(
+    () => availableOptions.mechanisms
+  );
 
   // === DATA PROCESSING ===
 
@@ -183,6 +245,95 @@ export default function CellTherapyDashboard() {
     );
   }, [chartData, filteredPeriods, selectedTherapies]);
 
+  // Process data for ApprovalsByProduct chart
+  const approvalsByProductChartData: ApprovalsByProductData[] = useMemo(() => {
+    const filteredApprovals = therapyApprovals.filter(
+      (approval) =>
+        selectedApprovalTypes.includes(approval.approval_type) &&
+        selectedDiseaseIndications.includes(approval.disease_id)
+    );
+
+    const grouped = filteredApprovals.reduce<
+      Record<string, ApprovalsByProductData>
+    >((acc, approval) => {
+      const therapyName =
+        therapies.find((t) => t.id === approval.therapy_id)?.name ||
+        approval.therapy_id;
+
+      if (!acc[therapyName]) {
+        acc[therapyName] = { therapy: therapyName };
+      }
+      acc[therapyName][approval.regulatory_body] =
+        ((acc[therapyName][approval.regulatory_body] as number) || 0) + 1;
+
+      return acc;
+    }, {});
+
+    return Object.values(grouped).sort((a, b) =>
+      a.therapy.localeCompare(b.therapy)
+    );
+  }, [selectedApprovalTypes, selectedDiseaseIndications]);
+
+  // Process data for ProductsByDisease chart
+  const productsByDiseaseChartData: ProductsByDiseaseData[] = useMemo(() => {
+    const filteredApprovals = therapyApprovals.filter((approval) =>
+      selectedRegionsForDisease.includes(approval.region)
+    );
+
+    const uniqueCombinations = new Set(
+      filteredApprovals.map(
+        (approval) => `${approval.therapy_id}-${approval.disease_id}`
+      )
+    );
+
+    const grouped = diseases.reduce<Record<string, ProductsByDiseaseData>>(
+      (acc, disease) => {
+        acc[disease.name] = { disease: disease.name };
+        return acc;
+      },
+      {}
+    );
+
+    uniqueCombinations.forEach((combo) => {
+      const [therapyId, diseaseId] = combo.split("-");
+      const therapy = therapies.find((t) => t.id === therapyId);
+      const disease = diseases.find((d) => d.id === diseaseId);
+
+      if (!therapy || !selectedMechanisms.includes(therapy.mechanism)) {
+        return;
+      }
+
+      if (disease && therapy && grouped[disease.name]) {
+        const productName = therapy.name;
+        if (!grouped[disease.name][productName]) {
+          grouped[disease.name][productName] = 0;
+        }
+        (grouped[disease.name][productName] as number) += 1;
+      }
+    });
+
+    return Object.values(grouped)
+      .filter((item) =>
+        Object.keys(item).some(
+          (key) =>
+            key !== "disease" &&
+            typeof item[key] === "number" &&
+            (item[key] as number) > 0
+        )
+      )
+      .sort((a, b) => {
+        const totalA = Object.values(a).reduce<number>(
+          (sum, val) => (typeof val === "number" ? sum + val : sum),
+          0
+        );
+        const totalB = Object.values(b).reduce<number>(
+          (sum, val) => (typeof val === "number" ? sum + val : sum),
+          0
+        );
+        return totalB - totalA;
+      });
+  }, [selectedRegionsForDisease, selectedMechanisms]);
+
   // === EVENT HANDLERS ===
 
   const handleRegionToggle = (region: string) => {
@@ -211,9 +362,6 @@ export default function CellTherapyDashboard() {
 
   // === CONFIGURATION ===
 
-  const availableRegions = ["US", "Europe", "Other"];
-  const availableTherapies = therapies.map((t) => t.id);
-
   // Helper function to get therapy display name
   const getTherapyDisplayName = (therapyId: string): string => {
     return therapies.find((t) => t.id === therapyId)?.name || therapyId;
@@ -221,8 +369,96 @@ export default function CellTherapyDashboard() {
 
   // Helper function to get therapy color using utility
   const getTherapyColorForId = (therapyId: string): string => {
-    return getTherapyColor(therapyId, availableTherapies);
+    return getTherapyColor(therapyId, availableOptions.therapies);
   };
+
+  // Config for ApprovalsByProduct chart
+  const approvalsByProductStacks = availableOptions.regulatoryBodies.map(
+    (body) => ({
+      key: body,
+      name: body,
+      color: getTherapyColor(body, availableOptions.regulatoryBodies),
+    })
+  );
+
+  const approvalsByProductFilters = [
+    {
+      key: "approvalType",
+      label: "Approval Type",
+      options: availableOptions.approvalTypes,
+      selectedValues: selectedApprovalTypes,
+      onToggle: (value: string) => {
+        setSelectedApprovalTypes((prev) =>
+          prev.includes(value)
+            ? prev.filter((v) => v !== value)
+            : [...prev, value]
+        );
+      },
+    },
+    {
+      key: "diseaseIndication",
+      label: "Disease Indication",
+      options: availableOptions.diseaseIndications.map((id) => {
+        const disease = diseases.find((d) => d.id === id);
+        return disease ? `${disease.name} (${id})` : id;
+      }),
+      selectedValues: selectedDiseaseIndications.map((id) => {
+        const disease = diseases.find((d) => d.id === id);
+        return disease ? `${disease.name} (${id})` : id;
+      }),
+      onToggle: (value: string) => {
+        // Extract ID from the formatted string if it contains parentheses
+        const id = value.includes("(")
+          ? value.match(/\(([^)]+)\)/)?.[1] || value
+          : value;
+        setSelectedDiseaseIndications((prev) =>
+          prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
+        );
+      },
+    },
+  ];
+
+  // Config for ProductsByDisease chart
+  const productsByDiseaseStacks = availableOptions.therapies.map(
+    (therapyId) => {
+      const therapyName =
+        therapies.find((t) => t.id === therapyId)?.name || therapyId;
+      return {
+        key: therapyName,
+        name: therapyName,
+        color: getTherapyColor(therapyId, availableOptions.therapies),
+      };
+    }
+  );
+
+  const productsByDiseaseFilters = [
+    {
+      key: "region",
+      label: "Regions",
+      options: availableOptions.regions,
+      selectedValues: selectedRegionsForDisease,
+      onToggle: (value: string) => {
+        setSelectedRegionsForDisease((prev) =>
+          prev.includes(value)
+            ? prev.filter((v) => v !== value)
+            : [...prev, value]
+        );
+      },
+    },
+    {
+      key: "mechanism",
+      label: "Mechanism",
+      options: availableOptions.mechanisms,
+      selectedValues: selectedMechanisms,
+      onToggle: (value: string) => {
+        setSelectedMechanisms((prev) =>
+          prev.includes(value)
+            ? prev.filter((v) => v !== value)
+            : [...prev, value]
+        );
+      },
+    },
+  ];
 
   return (
     <div className="w-full space-y-8 p-6">
@@ -239,8 +475,8 @@ export default function CellTherapyDashboard() {
         onTherapyToggle={handleTherapyToggle}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
-        availableRegions={availableRegions}
-        availableTherapies={availableTherapies}
+        availableRegions={availableOptions.regions}
+        availableTherapies={availableOptions.therapies}
         formatPeriod={formatPeriod}
         getTherapyDisplayName={getTherapyDisplayName}
         getTherapyColor={getTherapyColorForId}
@@ -249,10 +485,24 @@ export default function CellTherapyDashboard() {
       />
 
       {/* Approvals by Product Bar Chart */}
-      <ApprovalsByProduct />
+      <ApprovalsByProduct
+        chartData={approvalsByProductChartData}
+        stacks={approvalsByProductStacks}
+        filters={approvalsByProductFilters}
+        title="Regulatory Approvals by Product"
+        description="Number of regulatory approvals for each therapy, stacked by regulatory body. Filter by approval type and disease indication."
+      />
 
       {/* Products by Disease Bar Chart */}
-      <ProductsByDisease />
+      <ProductsByDisease
+        chartData={productsByDiseaseChartData}
+        stacks={productsByDiseaseStacks}
+        filters={productsByDiseaseFilters}
+        title="Approved Products by Disease"
+        description="Number of approved therapeutic products for each disease indication, stacked by manufacturer. Filter by region and mechanism of action."
+      />
+
+      <TreatmentCenterMap />
     </div>
   );
 }
