@@ -10,6 +10,7 @@ import RevenueByTherapy from "./RevenueByTherapy";
 
 // Import data
 import { getTherapyColor } from "@/lib/colour-utils";
+import CostByTherapy, { CostByTherapyData } from "./CostByTherapy";
 import {
   diseases,
   therapies,
@@ -334,6 +335,46 @@ export default function CellTherapyDashboard() {
       });
   }, [selectedRegionsForDisease, selectedMechanisms]);
 
+  // Process data for CostByTherapy chart
+  const costByTherapyChartData: CostByTherapyData[] = useMemo(() => {
+    // Get therapies that have approvals for selected disease indications
+    const approvedTherapyIds = new Set(
+      therapyApprovals
+        .filter((approval) =>
+          selectedDiseaseIndications.includes(approval.disease_id)
+        )
+        .map((approval) => approval.therapy_id)
+    );
+
+    const filteredTherapies = therapies.filter((therapy) =>
+      approvedTherapyIds.has(therapy.id)
+    );
+
+    // Create data structure where each therapy has its own column
+    return filteredTherapies
+      .map((therapy) => {
+        const dataPoint: any = { therapy: therapy.name };
+
+        // Add cost for this therapy and 0 for others (to ensure proper coloring)
+        filteredTherapies.forEach((t) => {
+          dataPoint[t.name] =
+            t.id === therapy.id ? t.price_per_treatment_usd : 0;
+        });
+
+        return dataPoint;
+      })
+      .sort((a, b) => {
+        // Sort by the therapy's actual cost (not the therapy name)
+        const aCost = Math.max(
+          ...Object.values(a).filter((v) => typeof v === "number")
+        ) as number;
+        const bCost = Math.max(
+          ...Object.values(b).filter((v) => typeof v === "number")
+        ) as number;
+        return bCost - aCost;
+      });
+  }, [selectedDiseaseIndications]);
+
   // === EVENT HANDLERS ===
 
   const handleRegionToggle = (region: string) => {
@@ -460,6 +501,50 @@ export default function CellTherapyDashboard() {
     },
   ];
 
+  // Config for CostByTherapy chart
+  const costByTherapyStacks = useMemo(() => {
+    // Get therapies that have approvals for selected disease indications
+    const approvedTherapyIds = new Set(
+      therapyApprovals
+        .filter((approval) =>
+          selectedDiseaseIndications.includes(approval.disease_id)
+        )
+        .map((approval) => approval.therapy_id)
+    );
+
+    return therapies
+      .filter((therapy) => approvedTherapyIds.has(therapy.id))
+      .map((therapy) => ({
+        key: therapy.name,
+        name: therapy.name,
+        color: getTherapyColorForId(therapy.id),
+      }));
+  }, [selectedDiseaseIndications]);
+
+  const costByTherapyFilters = [
+    {
+      key: "diseaseIndication",
+      label: "Disease Indication",
+      options: availableOptions.diseaseIndications.map((id) => {
+        const disease = diseases.find((d) => d.id === id);
+        return disease ? `${disease.name} (${id})` : id;
+      }),
+      selectedValues: selectedDiseaseIndications.map((id) => {
+        const disease = diseases.find((d) => d.id === id);
+        return disease ? `${disease.name} (${id})` : id;
+      }),
+      onToggle: (value: string) => {
+        // Extract ID from the formatted string if it contains parentheses
+        const id = value.includes("(")
+          ? value.match(/\(([^)]+)\)/)?.[1] || value
+          : value;
+        setSelectedDiseaseIndications((prev) =>
+          prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
+        );
+      },
+    },
+  ];
+
   return (
     <div className="w-full space-y-8 p-6">
       {/* Revenue by Therapy Line Chart */}
@@ -500,6 +585,15 @@ export default function CellTherapyDashboard() {
         filters={productsByDiseaseFilters}
         title="Approved Products by Disease"
         description="Number of approved therapeutic products for each disease indication, stacked by manufacturer. Filter by region and mechanism of action."
+      />
+
+      {/* Cost by Therapy Bar Chart */}
+      <CostByTherapy
+        chartData={costByTherapyChartData}
+        stacks={costByTherapyStacks}
+        filters={costByTherapyFilters}
+        title="Treatment Cost Comparison"
+        description="Cost per treatment for different CAR-T therapies approved for selected disease indications."
       />
 
       <TreatmentCenterMap />

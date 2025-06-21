@@ -159,7 +159,7 @@ export default function VerticalStackedBarChart({
                 }}
               />
               <Tooltip
-                content={<CustomTooltipContent />}
+                content={(props) => <CustomTooltipContent {...props} />}
                 cursor={{ fill: "rgba(206, 212, 218, 0.2)" }}
               />
               <Legend />
