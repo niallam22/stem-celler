@@ -1,5 +1,5 @@
 import { createCallerFactory, createTRPCRouter } from "./trpc";
-// import all routers here
+import { therapyRouter } from "./routers/therapy";
 
 /**
  * This is the primary router for your server.
@@ -7,7 +7,7 @@ import { createCallerFactory, createTRPCRouter } from "./trpc";
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
-  // add routers here
+  therapy: therapyRouter,
 });
 
 // export type definition of API

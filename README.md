@@ -95,28 +95,60 @@ Visit [http://localhost:3000](http://localhost:3000) to see your app.
 
 ## 🗄️ Database Management
 
-This project uses Drizzle ORM with Supabase for database management. Available commands:
+This project uses [Drizzle ORM](https://orm.drizzle.team/) with PostgreSQL (via Supabase). The database schema is defined in `src/lib/db/schema.ts` and migrations are managed through Drizzle Kit.
+
+### Database Architecture
+
+- **Schema**: `src/lib/db/schema.ts` - The single source of truth for your database structure
+- **Migrations**: `supabase/migrations/` - SQL migration files for version control
+- **Client**: `src/lib/db.ts` - Database connection and typed Drizzle instance
+- **Config**: `drizzle.config.ts` - Drizzle Kit configuration
+
+### Available Commands
 
 ```bash
-# Start db
-supbase start
+# Start local Supabase instance
+supabase start
 
-# Create a new migration from schema changes
-npm run db:migrate "migration_name"
-
-# Push schema changes directly to database (development)
+# Push schema changes directly to database (development only)
 npm run db:push
 
-# Reset local database and apply all migrations
+# Generate SQL migration files (for production)
+npm run db:migrate "descriptive_name"
+
+# Reset database and apply all migrations
 npm run db:reset
 ```
 
-### Workflow
+### Development Workflow
 
-1. **Modify schema**: Edit `src/lib/db/schema.ts`
-2. **Generate migration**: `npm run db:migrate "describe_your_changes"`
-3. **Test locally**: `npm run db:reset`
-4. **Deploy**: Commit migration files and push to production
+For quick development iterations:
+1. Edit `src/lib/db/schema.ts`
+2. Run `npm run db:push` to apply changes immediately
+3. Test your changes
+
+### Production Workflow
+
+For versioned, production-ready changes:
+1. Edit `src/lib/db/schema.ts`
+2. Run `npm run db:migrate "add_user_preferences"` to generate migration
+3. Review the generated SQL in `supabase/migrations/`
+4. Commit and deploy the migration files
+
+### Schema Example
+
+```typescript
+// src/lib/db/schema.ts
+export const users = pgTable("user", {
+  id: text("id").primaryKey().$defaultFn(() => createId()),
+  email: text("email").unique().notNull(),
+  createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+});
+
+// TypeScript types are automatically inferred
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+```
 
 ## 📁 Project Structure
 
