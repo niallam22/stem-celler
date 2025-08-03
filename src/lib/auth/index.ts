@@ -1,9 +1,11 @@
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "@/lib/db";
+import { user as userTable } from "@/lib/db/schema";
+import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import { eq } from "drizzle-orm";
 import {
   getServerSession,
-  type NextAuthOptions,
   type DefaultSession,
+  type NextAuthOptions,
 } from "next-auth";
 import EmailProvider from "next-auth/providers/email";
 
@@ -73,7 +75,8 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: {
-    strategy: "database",
+    strategy: "jwt",
+    maxAge: 7 * 24 * 60 * 60, // 7 days for regular users (overridden for admins in jwt callback)
   },
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
@@ -102,16 +105,64 @@ export const authOptions: NextAuthOptions = {
         return false;
       }
     },
-    async session({ session, user }) {
+    async jwt({ token, user }) {
+      // Add user properties to JWT token for middleware access
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+        token.login = user.login;
+        token.isAdmin = user.isAdmin;
+
+        // Set custom expiry based on admin status
+        const now = Math.floor(Date.now() / 1000);
+        if (user.isAdmin) {
+          token.exp = now + 4 * 60 * 60; // 4 hours for admins
+        } else {
+          token.exp = now + 7 * 24 * 60 * 60; // 7 days for regular users
+        }
+      } else if (token.id && !token.hasOwnProperty("isAdmin")) {
+        // If token exists but missing admin properties, fetch from database
+        try {
+          const dbUsers = await db
+            .select()
+            .from(userTable)
+            .where(eq(userTable.id, token.id as string))
+            .limit(1);
+
+          if (dbUsers.length > 0) {
+            const dbUser = dbUsers[0];
+            token.role = dbUser.role;
+            token.login = dbUser.login;
+            token.isAdmin = dbUser.isAdmin;
+
+            // Update expiry based on admin status
+            const now = Math.floor(Date.now() / 1000);
+            if (dbUser.isAdmin) {
+              token.exp = now + 4 * 60 * 60; // 4 hours for admins
+            } else {
+              token.exp = now + 7 * 24 * 60 * 60; // 7 days for regular users
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching user data for JWT:", error);
+        }
+      }
+      return token;
+    },
+    async session({ session, token, user }) {
       try {
+        // When using database sessions, user object is available
+        // When using JWT sessions, token object is available
+        const userData = user || token;
+
         return {
           ...session,
           user: {
             ...session.user,
-            id: user.id,
-            role: user.role,
-            login: user.login,
-            isAdmin: user.isAdmin,
+            id: userData.id,
+            role: userData.role,
+            login: userData.login,
+            isAdmin: userData.isAdmin,
           },
         };
       } catch (error) {
