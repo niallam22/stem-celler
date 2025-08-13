@@ -216,7 +216,7 @@ export const diseaseAdminRouter = createTRPCRouter({
 
     return {
       categories: categories.map(c => c.category),
-      subcategories: subcategories.map(s => s.subcategory).filter(Boolean),
+      subcategories: subcategories.map(s => s.subcategory).filter((s): s is string => Boolean(s)),
     };
   }),
 });

@@ -4,6 +4,9 @@ import { therapyAdminRouter } from "./routers/admin/therapy.admin";
 import { approvalAdminRouter } from "./routers/admin/approval.admin";
 import { revenueAdminRouter } from "./routers/admin/revenue.admin";
 import { diseaseAdminRouter } from "./routers/admin/disease.admin";
+import { documentAdminRouter } from "./routers/admin/document.admin";
+import { extractionAdminRouter } from "./routers/admin/extraction.admin";
+import { queueAdminRouter } from "./routers/admin/queue.admin";
 
 /**
  * This is the primary router for your server.
@@ -17,6 +20,9 @@ export const appRouter = createTRPCRouter({
     approval: approvalAdminRouter,
     revenue: revenueAdminRouter,
     disease: diseaseAdminRouter,
+    document: documentAdminRouter,
+    extraction: extractionAdminRouter,
+    queue: queueAdminRouter,
   }),
 });
 

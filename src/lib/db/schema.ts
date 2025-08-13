@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, pgEnum, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, pgEnum, primaryKey, jsonb } from "drizzle-orm/pg-core";
 import { createId } from "@paralleldrive/cuid2";
 
 // Enum for user roles
@@ -129,6 +129,55 @@ export const therapyRevenue = pgTable("therapyRevenue", {
   lastUpdated: timestamp("lastUpdated", { mode: "date" }).notNull(),
 });
 
+// Document Processing System Tables
+
+// Job Queue table for processing queue
+export const jobQueue = pgTable("jobQueue", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  documentId: text("documentId").notNull(),
+  jobType: text("jobType").notNull(), // 'extraction', 'reprocessing'
+  priority: integer("priority").notNull().default(3), // 1=high, 2=medium, 3=low (default low)
+  status: text("status").notNull().default("pending"), // pending, processing, completed, failed
+  attempts: integer("attempts").default(0),
+  maxAttempts: integer("maxAttempts").default(3),
+  error: text("error"),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  startedAt: timestamp("startedAt", { mode: "date" }),
+  completedAt: timestamp("completedAt", { mode: "date" }),
+});
+
+// Document metadata and storage location
+export const document = pgTable("document", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  s3Url: text("s3Url").notNull(),
+  fileName: text("fileName").notNull(),
+  fileHash: text("fileHash").notNull().unique(), // SHA-256, prevents duplicates
+  companyName: text("companyName"), // From therapy manufacturer field
+  reportType: text("reportType"), // 'annual', 'quarterly'
+  reportingPeriod: text("reportingPeriod"), // 'Q3-2024', '2024'
+  uploadedAt: timestamp("uploadedAt", { mode: "date" }).notNull().defaultNow(),
+  uploadedBy: text("uploadedBy").notNull(),
+});
+
+// Staging area for extracted data pending approval
+export const extraction = pgTable("extraction", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  documentId: text("documentId").notNull().unique(), // One extraction per document
+  extractedData: jsonb("extractedData").notNull(), // All agent outputs
+  requiresReview: boolean("requiresReview").default(true),
+  reviewNotes: text("reviewNotes"),
+  approvedBy: text("approvedBy"),
+  approvedAt: timestamp("approvedAt", { mode: "date" }),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
 // Export types for TypeScript inference
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -148,3 +197,9 @@ export type TherapyApproval = typeof therapyApproval.$inferSelect;
 export type NewTherapyApproval = typeof therapyApproval.$inferInsert;
 export type TherapyRevenue = typeof therapyRevenue.$inferSelect;
 export type NewTherapyRevenue = typeof therapyRevenue.$inferInsert;
+export type JobQueue = typeof jobQueue.$inferSelect;
+export type NewJobQueue = typeof jobQueue.$inferInsert;
+export type Document = typeof document.$inferSelect;
+export type NewDocument = typeof document.$inferInsert;
+export type Extraction = typeof extraction.$inferSelect;
+export type NewExtraction = typeof extraction.$inferInsert;

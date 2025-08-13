@@ -61,16 +61,16 @@ export default function DeleteDiseaseDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Disease</AlertDialogTitle>
           <AlertDialogDescription className="space-y-3">
-            <p>
+            <div>
               Are you sure you want to delete <strong>{diseaseName}</strong>?
               This action cannot be undone.
-            </p>
+            </div>
             
             <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-md border border-amber-200 dark:border-amber-800">
-              <p className="text-sm text-amber-800 dark:text-amber-200">
+              <div className="text-sm text-amber-800 dark:text-amber-200">
                 <strong>Warning:</strong> This disease may have related approval records.
                 If related records exist, the deletion will fail unless you enable cascade delete.
-              </p>
+              </div>
             </div>
 
             <div className="flex items-center space-x-2">

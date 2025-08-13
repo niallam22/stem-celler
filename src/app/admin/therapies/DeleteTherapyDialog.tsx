@@ -63,21 +63,21 @@ export default function DeleteTherapyDialog({
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3">
-              <p>
+              <div>
                 Are you sure you want to delete{" "}
                 <span className="font-semibold">{therapyName}</span>?
-              </p>
+              </div>
               {deleteMutation.error?.message.includes("cascade") && (
                 <div className="rounded-md bg-destructive/10 p-3 text-sm">
-                  <p className="font-medium text-destructive">
+                  <div className="font-medium text-destructive">
                     Related Records Found
-                  </p>
-                  <p className="mt-1 text-muted-foreground">
+                  </div>
+                  <div className="mt-1 text-muted-foreground">
                     {deleteMutation.error.message}
-                  </p>
-                  <p className="mt-2 text-muted-foreground">
+                  </div>
+                  <div className="mt-2 text-muted-foreground">
                     To delete this therapy and all related records, click "Delete All" below.
-                  </p>
+                  </div>
                 </div>
               )}
             </div>

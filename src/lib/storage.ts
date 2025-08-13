@@ -1,23 +1,44 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { createClient } from '@supabase/supabase-js';
 
-const s3 = new S3Client({
-  region: process.env.AWS_REGION,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+// Create Supabase client with service role key for backend operations
+// This bypasses RLS policies
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
+
+const BUCKET_NAME = 'documents';
 
 export async function uploadFile(
   key: string,
   body: Buffer | Uint8Array | Blob | string,
+  contentType: string = 'application/pdf',
 ) {
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: process.env.BUCKET_NAME!,
-      Key: key,
-      Body: body,
-    }),
-  );
-  return `https://${process.env.BUCKET_NAME}.s3.amazonaws.com/${key}`;
+  // Convert Buffer to Blob with proper content type
+  const fileBody = body instanceof Buffer 
+    ? new Blob([body], { type: contentType }) 
+    : body instanceof Blob 
+    ? body 
+    : new Blob([body], { type: contentType });
+  
+  // Upload to Supabase Storage
+  const { data, error } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(key, fileBody, {
+      contentType,
+      upsert: true, // Overwrite if exists
+    });
+
+  if (error) {
+    throw new Error(`Failed to upload file: ${error.message}`);
+  }
+
+  // Return the file path, not a URL
+  return key; // Just return the key/path for later retrieval
 }

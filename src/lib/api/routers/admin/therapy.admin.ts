@@ -186,4 +186,25 @@ export const therapyAdminRouter = createTRPCRouter({
       revenueRecords: revenueCount[0]?.count ?? 0,
     };
   }),
+
+  // Get therapies by manufacturer
+  getByManufacturer: adminProcedure
+    .input(
+      z.object({
+        manufacturer: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      const therapies = await db
+        .select({
+          id: therapy.id,
+          name: therapy.name,
+          manufacturer: therapy.manufacturer,
+          mechanism: therapy.mechanism,
+        })
+        .from(therapy)
+        .where(eq(therapy.manufacturer, input.manufacturer));
+
+      return therapies;
+    }),
 });

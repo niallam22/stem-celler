@@ -31,13 +31,10 @@ const therapyFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   manufacturer: z.string().min(1, "Manufacturer is required"),
   mechanism: z.string().min(1, "Mechanism is required"),
-  pricePerTreatmentUsd: z.string().transform((val) => {
+  pricePerTreatmentUsd: z.string().refine((val) => {
     const num = Number(val);
-    if (isNaN(num) || num <= 0) {
-      throw new Error("Price must be a positive number");
-    }
-    return num;
-  }),
+    return !isNaN(num) && num > 0;
+  }, "Price must be a positive number"),
   sources: z.array(z.string()).min(1, "At least one source is required"),
 });
 

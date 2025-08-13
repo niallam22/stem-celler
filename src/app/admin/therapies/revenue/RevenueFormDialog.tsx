@@ -41,17 +41,15 @@ const revenueFormSchema = z.object({
     "Period must be in format 'Q1 2024' or '2024'"
   ),
   region: z.string().min(1, "Region is required"),
-  revenueMillionsUsd: z.string().transform((val) => {
+  revenueMillionsUsd: z.string().refine((val) => {
     const num = Number(val);
-    if (isNaN(num) || num <= 0) {
-      throw new Error("Revenue must be a positive number");
-    }
-    return num;
-  }),
+    return !isNaN(num) && num > 0;
+  }, "Revenue must be a positive number"),
   sources: z.array(z.string()).min(1, "At least one source is required"),
 });
 
 type RevenueFormValues = z.input<typeof revenueFormSchema>;
+type RevenueFormOutput = z.output<typeof revenueFormSchema>;
 
 interface RevenueFormDialogProps {
   open: boolean;

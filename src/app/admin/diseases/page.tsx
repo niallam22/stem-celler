@@ -156,7 +156,7 @@ export default function DiseasesPage() {
               <SelectContent>
                 <SelectItem value="__all__">All subcategories</SelectItem>
                 {filterOptions?.subcategories.map((subcategory) => (
-                  <SelectItem key={subcategory} value={subcategory}>
+                  <SelectItem key={subcategory} value={subcategory || ""}>
                     {subcategory}
                   </SelectItem>
                 ))}

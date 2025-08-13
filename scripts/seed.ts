@@ -1,7 +1,18 @@
-import "dotenv/config";
-import { db } from "../src/lib/db";
+import dotenv from "dotenv";
+
+// Load .env.local first, then .env as fallback
+dotenv.config({ path: ".env.local" });
+dotenv.config();
+
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { therapy, disease, therapyApproval, therapyRevenue } from "../src/lib/db/schema";
 import { therapies, diseases, therapyApprovals, therapyRevenue as therapyRevenueData } from "../src/components/graphs/therapy-data";
+
+// Create dedicated connection for seeding to avoid shared connection issues
+const connectionString = process.env.DATABASE_URL!;
+const client = postgres(connectionString);
+const db = drizzle(client);
 
 async function seed() {
   console.log("🌱 Starting seed...");
@@ -10,6 +21,7 @@ async function seed() {
     // Seed therapies
     console.log("Seeding therapies...");
     for (const t of therapies) {
+      console.log(`Inserting therapy: ${t.name}`);
       await db.insert(therapy).values({
         id: t.id,
         name: t.name,
@@ -70,6 +82,8 @@ async function seed() {
   } catch (error) {
     console.error("❌ Seed failed:", error);
     process.exit(1);
+  } finally {
+    await client.end();
   }
 
   process.exit(0);
