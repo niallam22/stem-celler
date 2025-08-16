@@ -13,6 +13,7 @@ import { getTherapyColor } from "@/lib/colour-utils";
 import CostByTherapy, { CostByTherapyData } from "./CostByTherapy";
 import TreatmentCenterMap from "./TreatmentCenterMap";
 import { api } from "@/lib/trpc/react";
+import { processRevenueWithHierarchy, ProcessedRevenueData as HierarchicalRevenueData } from "@/lib/utils/revenue-hierarchy";
 
 // Helper functions
 const periodToDate = (period: string): Date => {
@@ -36,17 +37,10 @@ const formatPeriod = (period: string): string => {
 };
 
 // Data interfaces
-interface EnrichedTherapyData {
-  id: string;
-  therapyId: string;
+interface EnrichedTherapyData extends HierarchicalRevenueData {
   therapyName: string;
-  period: string;
-  region: string;
-  revenueMillionsUsd: number;
   pricePerTreatmentUsd: number;
   manufacturer: string;
-  sources: string[];
-  lastUpdated: Date;
 }
 
 interface ProcessedRevenueData {
@@ -69,19 +63,27 @@ interface AggregatedData {
   therapies: Record<string, TherapyMetrics>;
 }
 
-const computeAvailableOptions = (data: {
-  therapies: Array<{ id: string; mechanism: string; manufacturer: string }>;
-  therapyRevenue: Array<{ region: string }>;
-  therapyApprovals: Array<{
-    approvalType: string;
-    regulatoryBody: string;
-    region: string;
-    diseaseId: string;
-  }>;
-}) => {
+const computeAvailableOptions = (
+  data: {
+    therapies: Array<{ id: string; mechanism: string; manufacturer: string }>;
+    therapyRevenue: Array<{ region: string }>;
+    therapyApprovals: Array<{
+      approvalType: string;
+      regulatoryBody: string;
+      region: string;
+      diseaseId: string;
+    }>;
+  },
+  hierarchicalRevenue?: Array<{ region: string }>
+) => {
+  // Use hierarchical revenue data for regions if available, otherwise fall back to raw data
+  const revenueRegions = hierarchicalRevenue 
+    ? [...new Set(hierarchicalRevenue.map((item) => item.region))]
+    : [...new Set(data.therapyRevenue.map((item) => item.region))];
+  
   return {
     therapies: [...new Set(data.therapies.map((t) => t.id))],
-    regions: [...new Set(data.therapyRevenue.map((item) => item.region))],
+    regions: revenueRegions,
     approvalTypes: [
       ...new Set(data.therapyApprovals.map((a) => a.approvalType)),
     ],
@@ -102,6 +104,12 @@ export default function CellTherapyDashboard() {
   const { data, isLoading, error } = api.therapy.getDashboardData.useQuery();
   
   
+  // Process revenue data with hierarchy first
+  const hierarchicalRevenue = useMemo(() => {
+    if (!data) return [];
+    return processRevenueWithHierarchy(data.therapyRevenue);
+  }, [data]);
+
   // === STATE MANAGEMENT ===
   const availableOptions = useMemo(
     () =>
@@ -110,7 +118,7 @@ export default function CellTherapyDashboard() {
             therapies: data.therapies,
             therapyRevenue: data.therapyRevenue,
             therapyApprovals: data.therapyApprovals,
-          })
+          }, hierarchicalRevenue)
         : {
             therapies: [],
             regions: [],
@@ -121,7 +129,7 @@ export default function CellTherapyDashboard() {
             manufacturers: [],
             approvalRegions: [],
           },
-    [data]
+    [data, hierarchicalRevenue]
   );
 
   // Revenue chart state
@@ -168,10 +176,12 @@ export default function CellTherapyDashboard() {
 
   // === DATA PROCESSING ===
 
-  // Join revenue data with therapy metadata
+  // Join hierarchical revenue data with therapy metadata
   const enrichedData: EnrichedTherapyData[] = useMemo(() => {
-    if (!data) return [];
-    return data.therapyRevenue.map((revenue) => {
+    if (!data || hierarchicalRevenue.length === 0) return [];
+    
+    // Enrich hierarchical revenue with therapy metadata
+    return hierarchicalRevenue.map((revenue) => {
       const therapy = data.therapies.find((t) => t.id === revenue.therapyId);
       return {
         ...revenue,
@@ -180,7 +190,7 @@ export default function CellTherapyDashboard() {
         manufacturer: therapy?.manufacturer || "Unknown",
       };
     });
-  }, [data]);
+  }, [data, hierarchicalRevenue]);
 
   // Get all unique periods and sort them
   const allPeriods = useMemo(() => {

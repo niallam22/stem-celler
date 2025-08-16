@@ -2,6 +2,7 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 import { DocumentInfo } from "./document-classifier-agent";
+import { standardizeRegion, parsePeriod } from "@/lib/utils/revenue-hierarchy";
 
 // Schema for revenue data
 const RevenueSchema = z.object({
@@ -314,47 +315,20 @@ FOCUS AREAS:
   }
 
   private standardizePeriod(period: string, contextPeriod?: string): string {
-    // If period is already standardized, return as-is
-    if (/^(Q[1-4]\s\d{4}|\d{4})$/.test(period)) {
-      return period;
+    try {
+      // Use the hierarchy utility for consistent parsing
+      const parsed = parsePeriod(period);
+      return parsed.standardized;
+    } catch (error) {
+      console.warn(`Failed to parse period "${period}", falling back to context:`, error);
+      // Fall back to context period if available
+      return contextPeriod || period;
     }
-
-    // Try to extract quarter and year
-    const quarterMatch = period.match(/q?([1-4])/i);
-    const yearMatch = period.match(/(\d{4})/);
-
-    if (quarterMatch && yearMatch) {
-      return `Q${quarterMatch[1]} ${yearMatch[1]}`;
-    }
-
-    if (yearMatch) {
-      return yearMatch[1];
-    }
-
-    // Fall back to context period if available
-    return contextPeriod || period;
   }
 
   private standardizeRegion(region: string): string {
-    const regionMappings: { [key: string]: string } = {
-      us: "United States",
-      usa: "United States",
-      "united states": "United States",
-      "north america": "United States",
-      eu: "Europe",
-      europe: "Europe",
-      "european union": "Europe",
-      japan: "Japan",
-      china: "China",
-      "rest of world": "Rest of World",
-      row: "Rest of World",
-      international: "International",
-      global: "Global",
-      worldwide: "Global",
-    };
-
-    const lowerRegion = region.toLowerCase().trim();
-    return regionMappings[lowerRegion] || region;
+    // Use the hierarchy utility for consistent region standardization
+    return standardizeRegion(region);
   }
 
   private validateRevenue(revenue: number): number {
