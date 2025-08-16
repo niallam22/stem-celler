@@ -19,6 +19,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -33,7 +41,9 @@ import {
   ArrowDown,
   Activity,
   DollarSign,
-  CheckCircle2
+  CheckCircle2,
+  X,
+  Trash2
 } from "lucide-react";
 import { toast } from "react-toastify";
 import Link from "next/link";
@@ -46,10 +56,12 @@ export default function ExtractionsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("all");
   const [sortBy, setSortBy] = useState<SortBy>("createdAt");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [reviewingExtraction, setReviewingExtraction] = useState<string | null>(null);
+  const [rejectingExtraction, setRejectingExtraction] = useState<string | null>(null);
+  const [deletingExtraction, setDeletingExtraction] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = api.admin.extraction.list.useQuery({
     page,
@@ -68,6 +80,28 @@ export default function ExtractionsPage() {
     },
     onError: (error) => {
       toast.error(`Failed to approve: ${error.message}`);
+    },
+  });
+
+  const rejectMutation = api.admin.extraction.reject.useMutation({
+    onSuccess: () => {
+      toast.success("Extraction rejected successfully");
+      refetch();
+      setRejectingExtraction(null);
+    },
+    onError: (error) => {
+      toast.error(`Failed to reject: ${error.message}`);
+    },
+  });
+
+  const deleteMutation = api.admin.extraction.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Extraction deleted successfully");
+      refetch();
+      setDeletingExtraction(null);
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete: ${error.message}`);
     },
   });
 
@@ -136,6 +170,7 @@ export default function ExtractionsPage() {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="pending">Pending Review</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
               <Select
@@ -230,8 +265,10 @@ export default function ExtractionsPage() {
                         <TableCell>
                           {extraction.requiresReview ? (
                             <Badge variant="secondary">Pending Review</Badge>
-                          ) : (
+                          ) : extraction.approvedAt ? (
                             <Badge variant="default">Approved</Badge>
+                          ) : (
+                            <Badge variant="destructive">Rejected</Badge>
                           )}
                         </TableCell>
                         <TableCell>
@@ -247,13 +284,29 @@ export default function ExtractionsPage() {
                               <Eye className="h-4 w-4" />
                             </Button>
                             {extraction.requiresReview && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => approveMutation.mutate({ id: extraction.id })}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => approveMutation.mutate({ id: extraction.id })}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setRejectingExtraction(extraction.id)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setDeletingExtraction(extraction.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
                             )}
                           </div>
                         </TableCell>
@@ -303,6 +356,66 @@ export default function ExtractionsPage() {
           }}
         />
       )}
+
+      {/* Reject Confirmation Dialog */}
+      <Dialog open={!!rejectingExtraction} onOpenChange={(open) => {
+        if (!open) setRejectingExtraction(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Extraction</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to reject this extraction? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectingExtraction(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (rejectingExtraction) {
+                  rejectMutation.mutate({ id: rejectingExtraction });
+                }
+              }}
+              disabled={rejectMutation.isLoading}
+            >
+              Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deletingExtraction} onOpenChange={(open) => {
+        if (!open) setDeletingExtraction(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Extraction</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete this extraction? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingExtraction(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deletingExtraction) {
+                  deleteMutation.mutate({ id: deletingExtraction });
+                }
+              }}
+              disabled={deleteMutation.isLoading}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

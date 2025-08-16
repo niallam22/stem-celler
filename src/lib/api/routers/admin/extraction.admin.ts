@@ -73,7 +73,7 @@ export const extractionAdminRouter = createTRPCRouter({
         page: z.number().min(1).default(1),
         pageSize: z.number().min(1).max(100).default(10),
         search: z.string().optional(),
-        status: z.enum(["pending", "approved", "all"]).default("all"),
+        status: z.enum(["pending", "approved", "rejected", "all"]).default("all"),
         sortBy: z
           .enum(["createdAt", "updatedAt", "approvedAt"])
           .default("createdAt"),
@@ -108,6 +108,13 @@ export const extractionAdminRouter = createTRPCRouter({
           and(
             eq(extraction.requiresReview, false),
             sql`${extraction.approvedAt} IS NOT NULL`
+          )
+        );
+      } else if (status === "rejected") {
+        whereConditions.push(
+          and(
+            eq(extraction.requiresReview, false),
+            sql`${extraction.approvedAt} IS NULL`
           )
         );
       }
@@ -409,6 +416,86 @@ export const extractionAdminRouter = createTRPCRouter({
           })
           .where(eq(extraction.id, input.id));
       });
+
+      return { success: true };
+    }),
+
+  reject: adminProcedure
+    .input(
+      z.object({
+        id: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Check if extraction exists and is still pending
+      const [extractionData] = await db
+        .select()
+        .from(extraction)
+        .where(eq(extraction.id, input.id))
+        .limit(1);
+
+      if (!extractionData) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Extraction not found",
+        });
+      }
+
+      if (!extractionData.requiresReview) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot reject an already processed extraction",
+        });
+      }
+
+      // Mark extraction as rejected using existing fields
+      const [updated] = await db
+        .update(extraction)
+        .set({
+          requiresReview: false,
+          approvedBy: ctx.session.user.id,
+          approvedAt: null, // Explicitly set to null to indicate rejection
+          updatedAt: new Date(),
+        })
+        .where(eq(extraction.id, input.id))
+        .returning();
+
+      return { success: true, extraction: updated };
+    }),
+
+  delete: adminProcedure
+    .input(
+      z.object({
+        id: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // Check if extraction exists
+      const [extractionData] = await db
+        .select()
+        .from(extraction)
+        .where(eq(extraction.id, input.id))
+        .limit(1);
+
+      if (!extractionData) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Extraction not found",
+        });
+      }
+
+      // Don't allow deletion of approved extractions
+      if (!extractionData.requiresReview && extractionData.approvedAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot delete an approved extraction",
+        });
+      }
+
+      // Delete the extraction
+      await db
+        .delete(extraction)
+        .where(eq(extraction.id, input.id));
 
       return { success: true };
     }),

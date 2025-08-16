@@ -19,7 +19,8 @@ import {
   DollarSign, 
   CheckCircle2,
   AlertCircle,
-  Edit
+  Edit,
+  XCircle
 } from "lucide-react";
 
 interface ExtractionReviewDialogProps {
@@ -68,6 +69,19 @@ export default function ExtractionReviewDialog({
             <Badge variant="outline">{document.reportingPeriod}</Badge>
           </div>
         </DialogHeader>
+
+        {/* Show rejection information if extraction has been rejected */}
+        {!extraction.requiresReview && !extraction.approvedAt && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
+            <div className="flex items-center gap-2 text-red-800 mb-2">
+              <XCircle className="h-5 w-5" />
+              <span className="font-semibold">This extraction was rejected</span>
+            </div>
+            <div className="text-sm text-red-700">
+              <div><strong>Rejected by:</strong> {extraction.approvedBy}</div>
+            </div>
+          </div>
+        )}
 
         <Tabs defaultValue="therapy" className="flex-1 flex flex-col">
           <TabsList>
