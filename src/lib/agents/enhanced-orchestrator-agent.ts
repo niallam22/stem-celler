@@ -15,6 +15,7 @@ import { AgentLogger } from "./agent-logger";
 import { BusinessAnalysisAgent } from "./business-analysis-agent";
 import { DocumentClassifierAgent } from "./document-classifier-agent";
 import { DocumentStructureAnalyzer } from "./document-structure-analyzer";
+import { RevenueVerifierAgent } from "./revenue-verifier-agent";
 import {
   EnhancedExtractionState,
   ExtractedData,
@@ -98,6 +99,7 @@ export class EnhancedOrchestratorAgent {
   private documentClassifier: DocumentClassifierAgent;
   private revenueAgent: RevenueAgent;
   private businessAnalysisAgent: BusinessAnalysisAgent;
+  private revenueVerifier: RevenueVerifierAgent;
   private reconciler: ResultsReconciler;
   private logger: AgentLogger;
 
@@ -108,6 +110,7 @@ export class EnhancedOrchestratorAgent {
     this.documentClassifier = new DocumentClassifierAgent();
     this.revenueAgent = new RevenueAgent();
     this.businessAnalysisAgent = new BusinessAnalysisAgent();
+    this.revenueVerifier = new RevenueVerifierAgent();
     this.reconciler = new ResultsReconciler();
     this.logger = AgentLogger.getInstance();
   }
@@ -419,7 +422,7 @@ export class EnhancedOrchestratorAgent {
         await this.sectionExtractor.extractKeywordSections(
           therapyNames,
           state.pdfMetadata!.pageTexts,
-          2 // Context pages
+          1 // Context pages - reduced for more focused sections
         );
 
       const duration = Date.now() - startTime;
@@ -430,7 +433,7 @@ export class EnhancedOrchestratorAgent {
         therapies_searched: therapyNames.length,
         therapies_with_mentions: sectionsFound,
         total_sections_extracted: totalSections,
-        context_pages: 2,
+        context_pages: 1,
         success_rate: `${sectionsFound}/${therapyNames.length}`,
       });
 
@@ -578,26 +581,66 @@ export class EnhancedOrchestratorAgent {
       sourceTrack: "keyword",
     };
 
-    // Process each therapy's sections
+    // Process each therapy's sections with verification
     for (const [therapyName, sections] of Object.entries(
       state.keywordBasedSections
     )) {
-      const combinedText = sections.map((s) => s.text).join("\n\n");
-
-      // Market analysis removed - focusing on revenue extraction only
-
-      // Revenue analysis - therapy-specific
       console.log(`📊 Keyword Track: Processing therapy-specific revenue for ${therapyName}`);
-      const revenueResults = await this.revenueAgent.analyze(
-        combinedText,
-        state.documentInfo!,
-        therapyName // Pass specific therapy name for focused analysis
+      console.log(`🔍 Found ${sections.length} context windows for verification`);
+      
+      // Verify each section (context window) for revenue content
+      const verifiedSections: Array<{ section: any; verification: any }> = [];
+      const batchStartTime = Date.now();
+      let totalConfidence = 0;
+      
+      for (const section of sections) {
+        const verification = await this.revenueVerifier.verify(section.text, therapyName);
+        console.log(`🔍 Section verification: ${verification.containsRevenueData} (confidence: ${verification.confidence}%)`);
+        
+        totalConfidence += verification.confidence;
+        
+        if (verification.containsRevenueData && verification.confidence >= 50) {
+          verifiedSections.push({
+            section,
+            verification
+          });
+        }
+      }
+      
+      const batchDuration = Date.now() - batchStartTime;
+      const averageConfidence = sections.length > 0 ? totalConfidence / sections.length : 0;
+      
+      // Log batch summary
+      await this.revenueVerifier.logBatchSummary(
+        therapyName,
+        sections.length,
+        verifiedSections.length,
+        averageConfidence,
+        batchDuration
       );
-      // No need to filter since agent is now therapy-specific
-      const therapyRevenue = revenueResults.revenue;
+      
+      console.log(`✅ ${verifiedSections.length} of ${sections.length} context windows passed revenue verification`);
 
-      if (therapyRevenue) {
-        results.revenue.push(...therapyRevenue);
+      // Only process if we have verified revenue sections
+      if (verifiedSections.length > 0) {
+        // Combine verified sections for revenue analysis
+        const verifiedText = verifiedSections
+          .map((vs, i) => `VERIFIED REVENUE CONTEXT ${i + 1} (confidence: ${vs.verification.confidence}%):\n${vs.section.text}`)
+          .join("\n\n");
+
+        // Revenue analysis - therapy-specific with verified context
+        const revenueResults = await this.revenueAgent.analyze(
+          verifiedText,
+          state.documentInfo!,
+          therapyName // Pass specific therapy name for focused analysis
+        );
+        
+        const therapyRevenue = revenueResults.revenue;
+        if (therapyRevenue) {
+          results.revenue.push(...therapyRevenue);
+        }
+      } else {
+        console.log(`⚠️ No verified revenue context windows found for ${therapyName}`);
       }
     }
 

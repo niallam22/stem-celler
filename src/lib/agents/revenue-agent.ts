@@ -1,8 +1,8 @@
+import { parsePeriod, standardizeRegion } from "@/lib/utils/revenue-hierarchy";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 import { DocumentInfo } from "./document-classifier-agent";
-import { standardizeRegion, parsePeriod } from "@/lib/utils/revenue-hierarchy";
 
 // Schema for revenue data
 const RevenueSchema = z.object({
@@ -81,7 +81,7 @@ EXTRACTION AND CALCULATION TASKS:
    Perform calculations where needed:
    - Convert currencies to USD using standard rates
    - Convert units (billions to millions, thousands to millions)
-   - Calculate totals, growth rates, or segment breakdowns
+   - Do not calculate totals, growth rates, or segment breakdowns
    - Show your work with formulas
 
 3. VALIDATION RULES FOR {therapyName} REVENUE:
@@ -136,6 +136,7 @@ CONFIDENCE SCORING:
 
 FOCUS AREAS:
 - Look for revenue tables, financial summaries, geographic breakdowns
+- PRIORITIZE REVENUE/SALES TABLES OVER EVERYTHING ELSE
 - Pay attention to product-specific revenue mentions
 - Include both total revenue and segment/geographic breakdowns
 - Capture year-over-year or quarter-over-quarter comparisons
@@ -216,40 +217,53 @@ FOCUS AREAS:
       : pdfText;
   }
 
-  private extractTherapyRelevantSections(
+  extractTherapySnippets(
     text: string,
     therapyName: string
-  ): string {
+  ): Array<{ snippet: string; context: string; hasTherapyMention: boolean }> {
     // Split text into paragraphs to preserve structure
     const paragraphs = text.split(/\n\s*\n/);
     const therapyLower = therapyName.toLowerCase();
-
-    const relevantParagraphs: string[] = [];
+    const snippets: Array<{ snippet: string; context: string; hasTherapyMention: boolean }> = [];
 
     for (let i = 0; i < paragraphs.length; i++) {
       const paragraph = paragraphs[i];
       const paragraphLower = paragraph.toLowerCase();
 
-      // Include paragraphs that mention the therapy
-      if (paragraphLower.includes(therapyLower)) {
-        // Include the paragraph and some context around it
+      // Check if this paragraph mentions the therapy
+      const hasTherapyMention = paragraphLower.includes(therapyLower);
+
+      // Include paragraphs that mention the therapy OR have financial data
+      if (hasTherapyMention || this.hasFinancialData(paragraph)) {
+        // Build context around this paragraph
         const contextStart = Math.max(0, i - 1);
         const contextEnd = Math.min(paragraphs.length - 1, i + 1);
-
+        
+        const contextParagraphs = [];
         for (let j = contextStart; j <= contextEnd; j++) {
-          if (!relevantParagraphs.includes(paragraphs[j])) {
-            relevantParagraphs.push(paragraphs[j]);
-          }
+          contextParagraphs.push(paragraphs[j]);
         }
-      }
-
-      // Also include paragraphs with financial data that might be relevant
-      else if (this.hasFinancialData(paragraph)) {
-        relevantParagraphs.push(paragraph);
+        
+        snippets.push({
+          snippet: paragraph,
+          context: contextParagraphs.join("\n\n"),
+          hasTherapyMention
+        });
       }
     }
 
-    return relevantParagraphs.join("\n\n");
+    console.log(`💰 Revenue Agent: Extracted ${snippets.length} snippets for ${therapyName} (${snippets.filter(s => s.hasTherapyMention).length} with therapy mentions)`);
+
+    return snippets;
+  }
+
+  private extractTherapyRelevantSections(
+    text: string,
+    therapyName: string
+  ): string {
+    // Use the new snippet extraction but return combined text for compatibility
+    const snippets = this.extractTherapySnippets(text, therapyName);
+    return snippets.map(s => s.context).join("\n\n");
   }
 
   private hasFinancialData(text: string): boolean {
@@ -320,7 +334,10 @@ FOCUS AREAS:
       const parsed = parsePeriod(period);
       return parsed.standardized;
     } catch (error) {
-      console.warn(`Failed to parse period "${period}", falling back to context:`, error);
+      console.warn(
+        `Failed to parse period "${period}", falling back to context:`,
+        error
+      );
       // Fall back to context period if available
       return contextPeriod || period;
     }
