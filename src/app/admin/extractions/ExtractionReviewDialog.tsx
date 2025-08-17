@@ -103,8 +103,8 @@ export default function ExtractionReviewDialog({
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 mt-4">
-            <TabsContent value="therapy" className="space-y-4">
+          <ScrollArea className="flex-1 mt-4 max-h-[calc(80vh-200px)] overflow-auto">
+            <TabsContent value="therapy" className="space-y-4 p-1">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-lg font-semibold">Therapy Data</h3>
                 <Badge variant={extractedData.confidence.therapy >= 80 ? "default" : "secondary"}>
@@ -126,7 +126,7 @@ export default function ExtractionReviewDialog({
               ))}
             </TabsContent>
 
-            <TabsContent value="revenue" className="space-y-4">
+            <TabsContent value="revenue" className="space-y-4 p-1">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-lg font-semibold">Revenue Data</h3>
                 <Badge variant={extractedData.confidence.revenue >= 80 ? "default" : "secondary"}>
@@ -148,7 +148,7 @@ export default function ExtractionReviewDialog({
               ))}
             </TabsContent>
 
-            <TabsContent value="approvals" className="space-y-4">
+            <TabsContent value="approvals" className="space-y-4 p-1">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-lg font-semibold">Approval Data</h3>
                 <Badge variant={extractedData.confidence.approvals >= 80 ? "default" : "secondary"}>
@@ -172,7 +172,7 @@ export default function ExtractionReviewDialog({
               ))}
             </TabsContent>
 
-            <TabsContent value="sources" className="space-y-4">
+            <TabsContent value="sources" className="space-y-4 p-1">
               <h3 className="text-lg font-semibold mb-2">Source References</h3>
               {extractedData.sources.map((source, index) => (
                 <Card key={index}>
@@ -180,7 +180,7 @@ export default function ExtractionReviewDialog({
                     <div className="space-y-2">
                       <div><strong>Page {source.page}:</strong> {source.section}</div>
                       <blockquote className="border-l-4 pl-4 italic text-sm text-muted-foreground">
-                        "{source.quote}"
+                        &ldquo;{source.quote}&rdquo;
                       </blockquote>
                     </div>
                   </CardContent>
