@@ -1,5 +1,5 @@
 import { PromptTemplate } from "@langchain/core/prompts";
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatAnthropic } from "@langchain/anthropic";
 import { AgentLogger } from "./agent-logger";
 
 export interface RevenueVerificationResult {
@@ -9,15 +9,15 @@ export interface RevenueVerificationResult {
 }
 
 export class RevenueVerifierAgent {
-  private llm: ChatOpenAI;
+  private llm: ChatAnthropic;
   private verificationPrompt: PromptTemplate;
   private logger = AgentLogger.getInstance();
 
   constructor() {
-    this.llm = new ChatOpenAI({
-      modelName: "gpt-4o-mini",
+    this.llm = new ChatAnthropic({
+      model: "claude-sonnet-4-20250514",
       temperature: 0,
-      openAIApiKey: process.env.OPENAI_API_KEY,
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     });
 
     this.verificationPrompt = PromptTemplate.fromTemplate(`
@@ -32,17 +32,15 @@ KEY SNIPPETS WITH THERAPY MENTIONS:
 The highlighted snippets above show where "{therapyNames}" is mentioned in the text. Focus on these areas to determine if there are revenue tables or financial data.
 
 VERIFICATION CRITERIA - Return TRUE only if you find:
-✓ Revenue/sales TABLES containing data for {therapyNames}
-✓ Financial tables with figures for {therapyNames}
-✓ Structured revenue data for {therapyNames}
-✓ Sales breakdowns by region/period for {therapyNames}
-✓ Financial statements mentioning {therapyNames}
+✓ Revenue/sales TABLES with {therapyNames} specifically listed in the table
+✓ Financial tables showing revenue figures FOR {therapyNames}
+✓ Tabular data with {therapyNames} and corresponding revenue amounts
 
-IGNORE (Return FALSE):
-✗ Just therapy mentions without tables/figures
-✗ Clinical trial discussions
-✗ Regulatory approval discussions
-✗ General product descriptions
+RETURN FALSE for:
+✗ Revenue tables NOT about {therapyNames}
+✗ Revenue tables exist but {therapyNames} mentioned elsewhere on page (not in table)
+✗ Just therapy mentions without revenue figures
+✗ Revenue data for other therapies only
 
 RESPONSE FORMAT:
 Respond with exactly this JSON structure:
@@ -52,7 +50,7 @@ Respond with exactly this JSON structure:
   "reasoning": "Brief explanation of why this does/doesn't contain revenue tables for {therapyNames}"
 }}
 
-Focus on the highlighted snippets - only return true if you see actual revenue TABLES for {therapyNames}.
+Focus on the highlighted snippets - only return true if you see actual revenue TABLES with {therapyNames} specifically listed in the table data.
 `);
   }
 
@@ -91,7 +89,7 @@ Focus on the highlighted snippets - only return true if you see actual revenue T
       await this.logger.logMetadata("RevenueVerifierAgent", {
         operation: "llm_verification_call",
         therapy_name: therapyName || "unknown",
-        model: "gpt-4o-mini",
+        model: "claude-sonnet-4-20250514",
         prompt_length: prompt.length,
         response_length: (response.content as string).length,
         duration_ms: duration,

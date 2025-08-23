@@ -2,7 +2,7 @@ import { ExtractionResults, ExtractedData } from "./enhanced-orchestrator-types"
 
 export class ResultsReconciler {
   /**
-   * Reconcile results from multiple extraction tracks
+   * Reconcile results from revenue extraction
    */
   async reconcile(results: ExtractionResults[]): Promise<ExtractedData> {
     console.log(`🔗 Reconciling ${results.length} result sets...`);
@@ -12,31 +12,12 @@ export class ResultsReconciler {
     }
 
     if (results.length === 1) {
-      // Single track, convert to final format
+      // Single result set, convert to final format
       return this.convertToFinalFormat(results[0]);
     }
 
-    // Multiple tracks - merge intelligently
-    const structureResults = results.find(r => r.sourceTrack === 'structure');
-    const keywordResults = results.find(r => r.sourceTrack === 'keyword');
-
-    // Merge therapies
-    const mergedTherapies = this.mergeTherapies(
-      structureResults?.therapy || [],
-      keywordResults?.therapy || []
-    );
-
-    // Merge revenue
-    const mergedRevenue = this.mergeRevenue(
-      structureResults?.revenue || [],
-      keywordResults?.revenue || []
-    );
-
-    // Merge approvals
-    const mergedApprovals = this.mergeApprovals(
-      structureResults?.approvals || [],
-      keywordResults?.approvals || []
-    );
+    // Multiple result sets - merge revenue data
+    const mergedRevenue = this.mergeRevenue(results);
 
     // Calculate combined confidence
     const confidence = this.calculateCombinedConfidence(results);
@@ -45,9 +26,7 @@ export class ResultsReconciler {
     const allSources = this.collectAllSources(results);
 
     return {
-      therapy: mergedTherapies,
       revenue: mergedRevenue,
-      approvals: mergedApprovals,
       confidence,
       sources: allSources
     };
@@ -55,140 +34,102 @@ export class ResultsReconciler {
 
   private convertToFinalFormat(results: ExtractionResults): ExtractedData {
     return {
-      therapy: results.therapy,
-      revenue: results.revenue || [],
-      approvals: results.approvals?.map(a => ({
-        ...a,
-        approvalDate: new Date(a.approvalDate)
-      })) || [],
-      confidence: {
-        therapy: results.confidence.therapy,
-        revenue: results.confidence.revenue,
-        approvals: results.confidence.approvals
-      },
+      revenue: results.revenue,
+      confidence: results.confidence,
       sources: this.extractSourcesFromResults(results)
     };
   }
 
-  private mergeTherapies(
-    structureTherapies: ExtractionResults['therapy'],
-    keywordTherapies: ExtractionResults['therapy']
-  ): ExtractedData['therapy'] {
-    const therapyMap = new Map<string, typeof structureTherapies[0]>();
+  private mergeRevenue(results: ExtractionResults[]): ExtractedData['revenue'] {
+    const revenueMap = new Map<string, {record: ExtractedData['revenue'][0], confidence: number, sources: Set<string>}>();
+    let totalOverlaps = 0;
 
-    // Add structure-based therapies (higher priority)
-    structureTherapies.forEach(therapy => {
-      const key = `${therapy.name.toLowerCase()}-${therapy.manufacturer.toLowerCase()}`;
-      therapyMap.set(key, therapy);
-    });
+    console.log(`🔗 Merging revenue data from ${results.length} result sets...`);
 
-    // Add keyword-based therapies if not already present
-    keywordTherapies.forEach(therapy => {
-      const key = `${therapy.name.toLowerCase()}-${therapy.manufacturer.toLowerCase()}`;
-      if (!therapyMap.has(key)) {
-        therapyMap.set(key, therapy);
-      } else {
-        // Merge sources
-        const existing = therapyMap.get(key)!;
-        const mergedSources = Array.from(new Set([...existing.sources, ...therapy.sources]));
-        therapyMap.set(key, { ...existing, sources: mergedSources });
-      }
-    });
-
-    return Array.from(therapyMap.values());
-  }
-
-  private mergeRevenue(
-    structureRevenue: ExtractionResults['revenue'],
-    keywordRevenue: ExtractionResults['revenue']
-  ): ExtractedData['revenue'] {
-    const revenueMap = new Map<string, typeof structureRevenue[0]>();
-
-    // Create unique key for revenue records
-    const createKey = (r: typeof structureRevenue[0]) => 
+    // Create unique key for revenue records (therapy + period + region)
+    const createKey = (r: ExtractedData['revenue'][0]) => 
       `${r.therapyName.toLowerCase()}-${r.period}-${r.region.toLowerCase()}`;
 
-    // Add structure-based revenue
-    structureRevenue.forEach(revenue => {
-      revenueMap.set(createKey(revenue), revenue);
-    });
-
-    // Merge keyword-based revenue
-    keywordRevenue.forEach(revenue => {
-      const key = createKey(revenue);
-      if (!revenueMap.has(key)) {
-        revenueMap.set(key, revenue);
-      } else {
-        // If amounts differ significantly, flag for review
-        const existing = revenueMap.get(key)!;
-        if (Math.abs(existing.revenueMillionsUsd - revenue.revenueMillionsUsd) > 0.1) {
-          console.warn(`⚠️ Revenue amount mismatch for ${key}: ${existing.revenueMillionsUsd} vs ${revenue.revenueMillionsUsd}`);
-          // Take the value from structure track (usually more accurate for financial data)
+    // Track which result set each record came from for debugging
+    results.forEach((result, resultIndex) => {
+      console.log(`🔗 Processing result set ${resultIndex + 1}: ${result.revenue.length} records with ${result.confidence}% confidence`);
+      
+      result.revenue.forEach((revenue, recordIndex) => {
+        const key = createKey(revenue);
+        console.log(`🔗   Record ${recordIndex + 1}: ${revenue.therapyName} ${revenue.period} ${revenue.region} = $${revenue.revenueMillionsUsd}M`);
+        
+        if (!revenueMap.has(key)) {
+          // New unique record
+          revenueMap.set(key, {
+            record: revenue,
+            confidence: result.confidence,
+            sources: new Set(revenue.sources)
+          });
+          console.log(`🔗     ✅ Added as new record`);
+        } else {
+          // Overlap detected - resolve based on confidence and amount consistency
+          totalOverlaps++;
+          const existing = revenueMap.get(key)!;
+          const existingRecord = existing.record;
+          
+          console.log(`🔗     ⚠️ OVERLAP DETECTED with existing record:`);
+          console.log(`🔗       Existing: $${existingRecord.revenueMillionsUsd}M (confidence: ${existing.confidence}%)`);
+          console.log(`🔗       New: $${revenue.revenueMillionsUsd}M (confidence: ${result.confidence}%)`);
+          
+          // Check if amounts are significantly different
+          const amountDiff = Math.abs(existingRecord.revenueMillionsUsd - revenue.revenueMillionsUsd);
+          if (amountDiff > 0.1) {
+            console.log(`🔗       💰 Amount difference: $${amountDiff.toFixed(2)}M`);
+            
+            // Use the record with higher confidence for conflicting amounts
+            if (result.confidence > existing.confidence) {
+              console.log(`🔗       🎯 Using NEW record (higher confidence: ${result.confidence}% > ${existing.confidence}%)`);
+              existing.record = revenue;
+              existing.confidence = result.confidence;
+            } else {
+              console.log(`🔗       🎯 Keeping EXISTING record (higher confidence: ${existing.confidence}% >= ${result.confidence}%)`);
+            }
+          } else {
+            console.log(`🔗       ✅ Amounts are consistent (diff: $${amountDiff.toFixed(2)}M)`);
+          }
+          
+          // Always merge sources from both records
+          revenue.sources.forEach(source => existing.sources.add(source));
+          existing.record.sources = Array.from(existing.sources);
+          
+          console.log(`🔗       📎 Merged sources: ${existing.sources.size} total sources`);
         }
-        // Merge sources
-        const mergedSources = Array.from(new Set([...existing.sources, ...revenue.sources]));
-        revenueMap.set(key, { ...existing, sources: mergedSources });
-      }
+      });
     });
 
-    return Array.from(revenueMap.values());
+    const finalRevenue = Array.from(revenueMap.values()).map(item => item.record);
+    
+    console.log(`🔗 Merge complete: ${finalRevenue.length} unique records (${totalOverlaps} overlaps resolved)`);
+    
+    // Log final summary by therapy
+    const summaryByTherapy = new Map<string, {count: number, totalAmount: number}>();
+    finalRevenue.forEach(record => {
+      const therapy = record.therapyName;
+      if (!summaryByTherapy.has(therapy)) {
+        summaryByTherapy.set(therapy, {count: 0, totalAmount: 0});
+      }
+      const summary = summaryByTherapy.get(therapy)!;
+      summary.count++;
+      summary.totalAmount += record.revenueMillionsUsd;
+    });
+    
+    summaryByTherapy.forEach((summary, therapy) => {
+      console.log(`🔗   ${therapy}: ${summary.count} records, $${summary.totalAmount.toFixed(1)}M total`);
+    });
+
+    return finalRevenue;
   }
 
-  private mergeApprovals(
-    structureApprovals: ExtractionResults['approvals'],
-    keywordApprovals: ExtractionResults['approvals']
-  ): ExtractedData['approvals'] {
-    const approvalMap = new Map<string, typeof structureApprovals[0]>();
-
-    // Create unique key for approval records
-    const createKey = (a: typeof structureApprovals[0]) => 
-      `${a.therapyName.toLowerCase()}-${a.diseaseName.toLowerCase()}-${a.region.toLowerCase()}-${a.approvalDate}`;
-
-    // Process all approvals
-    [...structureApprovals, ...keywordApprovals].forEach(approval => {
-      const key = createKey(approval);
-      if (!approvalMap.has(key)) {
-        approvalMap.set(key, approval);
-      } else {
-        // Merge sources
-        const existing = approvalMap.get(key)!;
-        const mergedSources = Array.from(new Set([...existing.sources, ...approval.sources]));
-        approvalMap.set(key, { ...existing, sources: mergedSources });
-      }
-    });
-
-    return Array.from(approvalMap.values()).map(a => ({
-      ...a,
-      approvalDate: new Date(a.approvalDate)
-    }));
-  }
-
-  private calculateCombinedConfidence(results: ExtractionResults[]): ExtractedData['confidence'] {
-    let therapyConfidence = 0;
-    let revenueConfidence = 0;
-    let approvalsConfidence = 0;
-    let count = 0;
-
-    results.forEach(result => {
-      if (result.confidence.therapy > 0) {
-        therapyConfidence += result.confidence.therapy;
-        count++;
-      }
-      if (result.confidence.revenue > 0) {
-        revenueConfidence += result.confidence.revenue;
-        count++;
-      }
-      if (result.confidence.approvals > 0) {
-        approvalsConfidence += result.confidence.approvals;
-        count++;
-      }
-    });
-
-    return {
-      therapy: count > 0 ? Math.round(therapyConfidence / results.length) : 0,
-      revenue: count > 0 ? Math.round(revenueConfidence / results.length) : 0,
-      approvals: count > 0 ? Math.round(approvalsConfidence / results.length) : 0
-    };
+  private calculateCombinedConfidence(results: ExtractionResults[]): number {
+    if (results.length === 0) return 0;
+    
+    const totalConfidence = results.reduce((sum, result) => sum + result.confidence, 0);
+    return Math.round(totalConfidence / results.length);
   }
 
   private extractSourcesFromResults(results: ExtractionResults): ExtractedData['sources'] {
@@ -200,21 +141,16 @@ export class ResultsReconciler {
       return match ? parseInt(match[1]) : null;
     };
 
-    // Collect from all data types
-    ['therapy', 'revenue', 'approvals'].forEach(dataType => {
-      const items = results[dataType as keyof ExtractionResults];
-      if (items && Array.isArray(items)) {
-        items.forEach((item: { sources?: string[] }) => {
-          if (item.sources) {
-            item.sources.forEach((source: string) => {
-              const page = extractPageFromSource(source);
-              if (page) {
-                sources.push({
-                  page,
-                  section: dataType,
-                  quote: source
-                });
-              }
+    // Collect from revenue data
+    results.revenue.forEach((item) => {
+      if (item.sources) {
+        item.sources.forEach((source: string) => {
+          const page = extractPageFromSource(source);
+          if (page) {
+            sources.push({
+              page,
+              section: 'revenue',
+              quote: source
             });
           }
         });

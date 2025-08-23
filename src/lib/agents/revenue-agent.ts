@@ -1,8 +1,9 @@
 import { parsePeriod, standardizeRegion } from "@/lib/utils/revenue-hierarchy";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatAnthropic } from "@langchain/anthropic";
 import { z } from "zod";
 import { DocumentInfo } from "./document-classifier-agent";
+import { AgentLogger } from "./agent-logger";
 
 // Schema for revenue data
 const RevenueSchema = z.object({
@@ -43,24 +44,21 @@ export interface RevenueAnalysisResult {
 }
 
 export class RevenueAgent {
-  private llm: ChatOpenAI;
+  private llm: ChatAnthropic;
   private analysisPrompt: PromptTemplate;
+  private logger = AgentLogger.getInstance();
 
   constructor() {
-    this.llm = new ChatOpenAI({
-      modelName: "gpt-4o-mini",
+    this.llm = new ChatAnthropic({
+      model: "claude-sonnet-4-20250514",
       temperature: 0.1,
-      openAIApiKey: process.env.OPENAI_API_KEY,
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     });
 
     this.analysisPrompt = PromptTemplate.fromTemplate(`
-You are a Revenue Analysis Agent specialized in extracting and calculating financial data from pharmaceutical company reports.
+You are a Revenue Analysis Agent specialized in extracting and calculating financial data from pharmaceutical company documents.
 
-DOCUMENT CONTEXT:
-- Company: {companyName}
-- Report Type: {reportType}  
-- Period: {reportingPeriod}
-- Target Therapy: {therapyName}
+TARGET THERAPY: {therapyName}
 
 DOCUMENT TEXT:
 {documentText}
@@ -73,8 +71,8 @@ EXTRACTION AND CALCULATION TASKS:
    Extract revenue data ONLY for "{therapyName}" including:
    - Therapy name must match "{therapyName}" exactly (case-insensitive)
    - Revenue amounts (convert ALL amounts to millions USD)
-   - Time periods (Q1 2024, Q2 2024, 2024, etc.)
-   - Geographic regions (US, Europe, Rest of World, Global, etc.)
+   - Time periods as they appear in the document (quarters, years, etc.)
+   - Geographic regions as mentioned (US, Europe, Rest of World, Global, etc.)
    - Source citations with exact page numbers
 
 2. REVENUE CALCULATIONS:
@@ -87,7 +85,7 @@ EXTRACTION AND CALCULATION TASKS:
 3. VALIDATION RULES FOR {therapyName} REVENUE:
    - ONLY extract revenue for "{therapyName}" - ignore all other therapy revenues
    - Revenue amounts must be in millions USD (e.g., $1.5B = 1500, $430M = 430)
-   - Periods must follow standard formats (Q1 2024, 2024)
+   - Periods should use standard formats (e.g., Q1 YYYY, YYYY for years)
    - Region names should be standardized (United States, Europe, Japan, etc.)
    - Each revenue record must have clear source attribution
    - If "{therapyName}" has no revenue data in the document, return empty array
@@ -104,7 +102,7 @@ Return your analysis in this exact JSON structure:
   "revenue": [
     {{
       "therapyName": "Exact therapy/product name",
-      "period": "Q3 2024",
+      "period": "Q3 YYYY",
       "region": "United States",
       "revenueMillionsUsd": 1860,
       "sources": ["Page 15: Revenue by geography", "Page 8: Product revenue"]
@@ -115,12 +113,12 @@ Return your analysis in this exact JSON structure:
     {{
       "page": 15,
       "section": "Revenue by Geography",
-      "quote": "US revenue for Q3 2024 was $1.86 billion"
+      "quote": "US revenue for Q3 YYYY was $1.86 billion"
     }}
   ],
   "calculations": [
     {{
-      "description": "Converted Q3 2024 US revenue from billions to millions",
+      "description": "Converted Q3 YYYY US revenue from billions to millions",
       "formula": "$1.86B × 1000 = 1860M USD",
       "result": 1860,
       "confidence": 95
@@ -148,28 +146,102 @@ FOCUS AREAS:
     documentInfo: DocumentInfo,
     therapyName?: string
   ): Promise<RevenueAnalysisResult> {
+    const startTime = Date.now();
     console.log(
       `💰 Revenue Agent: Starting revenue analysis${
         therapyName ? ` for ${therapyName}` : ""
       }...`
     );
 
-    try {
-      // Prepare the prompt with document context
-      const prompt = await this.analysisPrompt.format({
-        companyName: documentInfo.companyName || "Unknown Company",
-        reportType: documentInfo.reportType || "Unknown",
-        reportingPeriod: documentInfo.reportingPeriod || "Unknown",
+    // Log input data
+    await this.logger.logInput("RevenueAgent", {
+      context: {
+        companyName: documentInfo.companyName,
+        reportType: documentInfo.reportType,
+        reportingPeriod: documentInfo.reportingPeriod,
         therapyName: therapyName || "all therapies",
-        documentText: this.prepareDocumentText(pdfText, therapyName),
+      },
+      parameters: {
+        pdfTextLength: pdfText.length,
+        hasTherapyName: !!therapyName,
+      }
+    });
+
+    try {
+      // Prepare the document text and log it
+      const preparedText = this.prepareDocumentText(pdfText, therapyName);
+      
+      await this.logger.logMetadata("RevenueAgent", {
+        operation: "text_preparation",
+        originalLength: pdfText.length,
+        preparedLength: preparedText.length,
+        therapyName: therapyName || "all therapies",
+        preparationMethod: therapyName ? "therapy-specific" : "general",
+      });
+
+      // Prepare the prompt
+      const prompt = await this.analysisPrompt.format({
+        therapyName: therapyName || "all therapies",
+        documentText: preparedText,
+      });
+
+      // Log LLM call details (before the call)
+      const llmCallStart = Date.now();
+      await this.logger.logLLMCall("RevenueAgent", {
+        model: "claude-sonnet-4-20250514",
+        prompt: prompt,
+        tokenEstimate: Math.ceil(prompt.length / 4), // Rough estimate
       });
 
       // Execute the analysis
       const response = await this.llm.invoke(prompt);
-      const result = this.parseAnalysisResult(response.content as string);
+      const llmCallDuration = Date.now() - llmCallStart;
+
+      // Log LLM response
+      await this.logger.logLLMCall("RevenueAgent", {
+        model: "claude-sonnet-4-20250514",
+        response: response.content as string,
+        duration: llmCallDuration,
+      });
+
+      // Parse and validate results
+      let result;
+      try {
+        result = this.parseAnalysisResult(response.content as string);
+        
+        // Log successful validation
+        await this.logger.logValidation("RevenueAgent", {
+          success: true,
+          originalData: response.content,
+          validatedData: result,
+        });
+      } catch (parseError) {
+        // Log validation failure
+        await this.logger.logValidation("RevenueAgent", {
+          success: false,
+          errors: [parseError instanceof Error ? parseError.message : String(parseError)],
+          originalData: response.content,
+        });
+        throw parseError;
+      }
 
       // Post-process and validate the results
       const processedResult = this.postProcessResults(result, documentInfo);
+
+      const totalDuration = Date.now() - startTime;
+      
+      // Log final output
+      await this.logger.logOutput("RevenueAgent", {
+        parsedResult: processedResult,
+        confidence: processedResult.confidence,
+      });
+
+      // Log timing
+      await this.logger.logTiming("RevenueAgent", "complete_analysis", totalDuration, {
+        therapyName: therapyName || "all therapies",
+        revenueRecordsFound: processedResult.revenue.length,
+        llmCallDuration,
+      });
 
       console.log(
         `✅ Revenue Agent: Analysis completed - ${processedResult.revenue.length} revenue records found`
@@ -181,13 +253,22 @@ FOCUS AREAS:
         sources: processedResult.sourceReferences,
       };
     } catch (error) {
+      const totalDuration = Date.now() - startTime;
+      
+      // Log the error
+      await this.logger.logError("RevenueAgent", error as Error, {
+        therapyName: therapyName || "all therapies",
+        companyName: documentInfo.companyName,
+        duration: totalDuration,
+      });
+
       console.error("❌ Revenue Agent: Analysis failed:", error);
       throw new Error(`Revenue analysis failed: ${error}`);
     }
   }
 
   private prepareDocumentText(pdfText: string, therapyName?: string): string {
-    // For therapy-specific analysis, use much more text to preserve context
+    // Apply character limit to preserve context while staying within token limits
     const maxLength = 25000;
 
     console.log(
@@ -196,87 +277,19 @@ FOCUS AREAS:
       } chars, limit: ${maxLength}${therapyName ? ` for ${therapyName}` : ""})`
     );
 
-    // For therapy-specific analysis, prioritize preserving therapy context
-    if (therapyName) {
-      const therapyRelevantText = this.extractTherapyRelevantSections(
-        pdfText,
-        therapyName
-      );
-      console.log(
-        `💰 Revenue Agent: Extracted ${therapyRelevantText.length} chars of therapy-relevant text`
-      );
-
-      return therapyRelevantText.length > maxLength
-        ? therapyRelevantText.substring(0, maxLength) + "..."
-        : therapyRelevantText;
-    }
-
-    // For general analysis, use basic length limiting
-    return pdfText.length > maxLength
+    // Since we now receive full pages from extractTherapyPages(), 
+    // just apply the character limit without additional extraction
+    const preparedText = pdfText.length > maxLength
       ? pdfText.substring(0, maxLength) + "..."
       : pdfText;
+
+    console.log(
+      `💰 Revenue Agent: Prepared ${preparedText.length} chars (${preparedText.length === pdfText.length ? 'no truncation' : 'truncated'})`
+    );
+
+    return preparedText;
   }
 
-  extractTherapySnippets(
-    text: string,
-    therapyName: string
-  ): Array<{ snippet: string; context: string; hasTherapyMention: boolean }> {
-    // Split text into paragraphs to preserve structure
-    const paragraphs = text.split(/\n\s*\n/);
-    const therapyLower = therapyName.toLowerCase();
-    const snippets: Array<{ snippet: string; context: string; hasTherapyMention: boolean }> = [];
-
-    for (let i = 0; i < paragraphs.length; i++) {
-      const paragraph = paragraphs[i];
-      const paragraphLower = paragraph.toLowerCase();
-
-      // Check if this paragraph mentions the therapy
-      const hasTherapyMention = paragraphLower.includes(therapyLower);
-
-      // Include paragraphs that mention the therapy OR have financial data
-      if (hasTherapyMention || this.hasFinancialData(paragraph)) {
-        // Build context around this paragraph
-        const contextStart = Math.max(0, i - 1);
-        const contextEnd = Math.min(paragraphs.length - 1, i + 1);
-        
-        const contextParagraphs = [];
-        for (let j = contextStart; j <= contextEnd; j++) {
-          contextParagraphs.push(paragraphs[j]);
-        }
-        
-        snippets.push({
-          snippet: paragraph,
-          context: contextParagraphs.join("\n\n"),
-          hasTherapyMention
-        });
-      }
-    }
-
-    console.log(`💰 Revenue Agent: Extracted ${snippets.length} snippets for ${therapyName} (${snippets.filter(s => s.hasTherapyMention).length} with therapy mentions)`);
-
-    return snippets;
-  }
-
-  private extractTherapyRelevantSections(
-    text: string,
-    therapyName: string
-  ): string {
-    // Use the new snippet extraction but return combined text for compatibility
-    const snippets = this.extractTherapySnippets(text, therapyName);
-    return snippets.map(s => s.context).join("\n\n");
-  }
-
-  private hasFinancialData(text: string): boolean {
-    // Check for currency symbols, large numbers, or financial keywords
-    const financialPatterns = [
-      /[\$€£¥]\s*[\d,]+(?:\.\d+)?(?:\s*(?:million|billion|M|B))?/i,
-      /\b\d+(?:\.\d+)?\s*(?:million|billion|M|B)\b/i,
-      /\b(?:revenue|sales|income|earnings)\b/i,
-      /\b(?:Q[1-4]|quarter|annual|year)\s+\d{4}\b/i,
-    ];
-
-    return financialPatterns.some((pattern) => pattern.test(text));
-  }
 
   private parseAnalysisResult(
     content: string
@@ -289,6 +302,88 @@ FOCUS AREAS:
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
+      
+      // Preprocess calculations array to convert string numbers to actual numbers
+      // Claude Sonnet 4 tends to return string values for numeric fields
+      if (parsed.calculations && Array.isArray(parsed.calculations)) {
+        parsed.calculations = parsed.calculations.map((calc: any) => {
+          const processedCalc = { ...calc };
+          
+          // Convert result from string to number if needed
+          if (typeof calc.result === 'string') {
+            const numResult = parseFloat(calc.result);
+            if (!isNaN(numResult)) {
+              processedCalc.result = numResult;
+            } else {
+              console.warn(`Invalid result value in calculations: "${calc.result}"`);
+              processedCalc.result = 0; // Default fallback
+            }
+          }
+          
+          // Convert confidence from string to number if needed
+          if (typeof calc.confidence === 'string') {
+            const numConfidence = parseFloat(calc.confidence);
+            if (!isNaN(numConfidence)) {
+              processedCalc.confidence = numConfidence;
+            } else {
+              console.warn(`Invalid confidence value in calculations: "${calc.confidence}"`);
+              processedCalc.confidence = 0; // Default fallback
+            }
+          }
+          
+          return processedCalc;
+        });
+      }
+      
+      // Also handle main confidence field if it's a string
+      if (typeof parsed.confidence === 'string') {
+        const numConfidence = parseFloat(parsed.confidence);
+        if (!isNaN(numConfidence)) {
+          parsed.confidence = numConfidence;
+        } else {
+          console.warn(`Invalid main confidence value: "${parsed.confidence}"`);
+          parsed.confidence = 0; // Default fallback
+        }
+      }
+      
+      // Handle revenue amounts if they're strings
+      if (parsed.revenue && Array.isArray(parsed.revenue)) {
+        parsed.revenue = parsed.revenue.map((rev: any) => {
+          const processedRev = { ...rev };
+          
+          if (typeof rev.revenueMillionsUsd === 'string') {
+            const numRevenue = parseFloat(rev.revenueMillionsUsd);
+            if (!isNaN(numRevenue)) {
+              processedRev.revenueMillionsUsd = numRevenue;
+            } else {
+              console.warn(`Invalid revenue amount: "${rev.revenueMillionsUsd}"`);
+              processedRev.revenueMillionsUsd = 0; // Default fallback
+            }
+          }
+          
+          return processedRev;
+        });
+      }
+      
+      // Handle sourceReferences page numbers if they're strings
+      if (parsed.sourceReferences && Array.isArray(parsed.sourceReferences)) {
+        parsed.sourceReferences = parsed.sourceReferences.map((ref: any) => {
+          const processedRef = { ...ref };
+          
+          if (typeof ref.page === 'string') {
+            const numPage = parseInt(ref.page, 10);
+            if (!isNaN(numPage)) {
+              processedRef.page = numPage;
+            } else {
+              console.warn(`Invalid page number in sourceReferences: "${ref.page}"`);
+              processedRef.page = 0; // Default fallback to page 0
+            }
+          }
+          
+          return processedRef;
+        });
+      }
+
       return RevenueAnalysisResultSchema.parse(parsed);
     } catch (error) {
       console.error("Failed to parse revenue analysis response:", content);
@@ -314,11 +409,23 @@ FOCUS AREAS:
       // Validate revenue amount
       let validatedRevenue = this.validateRevenue(revenue.revenueMillionsUsd);
 
+      // Enhance sources with company and report type context
+      const enhancedSources = revenue.sources.map(source => {
+        const companyPrefix = documentInfo.companyName ? `${documentInfo.companyName}` : '';
+        const reportTypePrefix = documentInfo.reportType ? ` ${documentInfo.reportType} report` : '';
+        return `${companyPrefix}${reportTypePrefix} - ${source}`;
+      });
+
       return {
         ...revenue,
         period: standardizedPeriod,
         region: standardizedRegion,
         revenueMillionsUsd: validatedRevenue,
+        sources: enhancedSources,
+        // Add document metadata for full traceability
+        documentCompany: documentInfo.companyName,
+        documentReportType: documentInfo.reportType,
+        documentPeriod: documentInfo.reportingPeriod,
       };
     });
 
