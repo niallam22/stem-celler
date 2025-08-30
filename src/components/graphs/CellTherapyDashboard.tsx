@@ -397,9 +397,10 @@ export default function CellTherapyDashboard() {
         const dataPoint: any = { therapy: therapy.name };
 
         // Add cost for this therapy and 0 for others (to ensure proper coloring)
+        // Convert to thousands for better y-axis readability
         filteredTherapies.forEach((t) => {
           dataPoint[t.name] =
-            t.id === therapy.id ? t.pricePerTreatmentUsd : 0;
+            t.id === therapy.id ? (t.pricePerTreatmentUsd / 1000) : 0;
         });
 
         return dataPoint;

@@ -49,7 +49,7 @@ export default function ConfigurableLineChart({
     xAxisFormatter,
     yAxisLabel,
     height = 400,
-    margin = { top: 5, right: 30, left: 20, bottom: 60 },
+    margin = { top: 5, right: 30, left: 60, bottom: 60 },
     tooltip: CustomTooltip,
   } = config;
 
@@ -71,6 +71,7 @@ export default function ConfigurableLineChart({
               value: yAxisLabel,
               angle: -90,
               position: "insideLeft",
+              style: { textAnchor: 'middle' },
             }}
           />
           {CustomTooltip && (

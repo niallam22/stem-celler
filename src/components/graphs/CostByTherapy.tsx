@@ -49,7 +49,7 @@ const CostTooltipWrapper = ({ active, payload, label }: any) => {
             currency: "USD",
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
-          }).format(item.value),
+          }).format(item.value * 1000), // Multiply by 1000 to show actual dollar amount
           color: item.color,
         }))} 
         label={label} 
@@ -76,7 +76,7 @@ export default function CostByTherapy({
         description={description}
         filters={filters}
         customTooltip={CostTooltipWrapper}
-        yAxisLabel="Cost per Treatment (USD)"
+        yAxisLabel="Cost per Treatment ($USD, 000s)"
         height={400}
       />
     </div>

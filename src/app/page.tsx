@@ -9,6 +9,21 @@ export const dynamic = "force-dynamic";
 
 async function getSession() {
   try {
+    // Check for development bypass first
+    if (process.env.NODE_ENV === "development" && process.env.BYPASS_AUTH === "true") {
+      return {
+        user: {
+          name: "Test User",
+          email: "test@test.com",
+          image: null,
+          id: "xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+          role: "admin",
+          login: null,
+          isAdmin: true
+        }
+      };
+    }
+
     const session = await getServerSession(authOptions);
     return session;
   } catch (error) {
@@ -30,7 +45,7 @@ export default async function Page() {
             {session ? (
               // Authenticated View
               <section className="max-w-7xl w-full space-y-8 animate-fade-in">
-                <h1> Welcome {session.user?.name}</h1>
+                <h1> Welcome {session?.user?.name || ""}</h1>
                 <CellTherapyDashboard />
               </section>
             ) : (

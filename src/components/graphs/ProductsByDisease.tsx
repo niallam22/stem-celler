@@ -38,7 +38,11 @@ export default function ProductsByDisease({
         filters={filters}
         customTooltip={CustomTooltip}
         yAxisLabel="Number of Products"
-        height={400}
+        height={500}
+        xAxisAngle={-25}
+        bottomMargin={60}
+        xAxisHeight={80}
+        legendPaddingTop={80}
       />
     </div>
   );

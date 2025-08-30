@@ -42,6 +42,10 @@ interface VerticalStackedBarChartProps {
   customTooltip?: React.ComponentType<any>;
   yAxisLabel?: string;
   height?: number;
+  xAxisAngle?: number;
+  bottomMargin?: number;
+  xAxisHeight?: number;
+  legendPaddingTop?: number;
 }
 
 const DefaultTooltip = ({ active, payload, label }: any) => {
@@ -76,6 +80,10 @@ export default function VerticalStackedBarChart({
   customTooltip: CustomTooltipContent = DefaultTooltip,
   yAxisLabel = "Count",
   height = 400,
+  xAxisAngle = -45,
+  bottomMargin = 60,
+  xAxisHeight = 80,
+  legendPaddingTop = 0,
 }: VerticalStackedBarChartProps) {
   // Calculate totals for each x-axis item
   const dataWithTotals = useMemo(() => {
@@ -139,15 +147,15 @@ export default function VerticalStackedBarChart({
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={dataWithTotals}
-              margin={{ top: 5, right: 30, left: 20, bottom: 60 }}
+              margin={{ top: 5, right: 30, left: 60, bottom: bottomMargin }}
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey={xAxisKey}
                 interval={0}
-                angle={-45}
+                angle={xAxisAngle}
                 textAnchor="end"
-                height={80}
+                height={xAxisHeight}
               />
               <YAxis
                 allowDecimals={false}
@@ -156,13 +164,17 @@ export default function VerticalStackedBarChart({
                   value: yAxisLabel,
                   angle: -90,
                   position: "insideLeft",
+                  style: { textAnchor: 'middle' },
                 }}
               />
               <Tooltip
                 content={(props) => <CustomTooltipContent {...props} />}
                 cursor={{ fill: "rgba(206, 212, 218, 0.2)" }}
               />
-              <Legend />
+              <Legend 
+                verticalAlign="bottom"
+                wrapperStyle={{ paddingTop: `${legendPaddingTop}px` }}
+              />
 
               {stacks.map((stack) => (
                 <Bar
