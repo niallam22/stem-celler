@@ -163,7 +163,7 @@ export default function CellTherapyDashboard() {
 
   // Update states when data loads
   useEffect(() => {
-    if (data && availableOptions.regions.length > 0) {
+    if (data && (availableOptions.regions.length > 0 || availableOptions.approvalRegions.length > 0)) {
       setSelectedRegions(prev => prev.length === 0 ? availableOptions.regions : prev);
       setSelectedTherapies(prev => prev.length === 0 ? availableOptions.therapies : prev);
       setSelectedApprovalTypes(prev => prev.length === 0 ? availableOptions.approvalTypes : prev);
@@ -323,7 +323,7 @@ export default function CellTherapyDashboard() {
 
     const uniqueCombinations = new Set(
       filteredApprovals.map(
-        (approval) => `${approval.therapyId}-${approval.diseaseId}`
+        (approval) => `${approval.therapyId}-${approval.diseaseId}-${approval.region}`
       )
     );
 
@@ -336,7 +336,7 @@ export default function CellTherapyDashboard() {
     );
 
     uniqueCombinations.forEach((combo) => {
-      const [therapyId, diseaseId] = combo.split("-");
+      const [therapyId, diseaseId, region] = combo.split("-");
       const therapy = data.therapies.find((t) => t.id === therapyId);
       const disease = data.diseases.find((d) => d.id === diseaseId);
 
@@ -517,7 +517,7 @@ export default function CellTherapyDashboard() {
     {
       key: "region",
       label: "Regions",
-      options: availableOptions.regions,
+      options: availableOptions.approvalRegions,
       selectedValues: selectedRegionsForDisease,
       onToggle: (value: string) => {
         setSelectedRegionsForDisease((prev) =>
