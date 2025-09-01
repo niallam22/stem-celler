@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 
 // Import graph components
 import ApprovalsByProduct, {
@@ -31,8 +31,11 @@ const periodToDate = (period: string): Date => {
   );
 };
 
-const formatPeriod = (period: string): string => {
+const formatPeriod = (period: string, isMobile: boolean = false): string => {
   const [year, quarter] = period.split("-");
+  if (isMobile) {
+    return year;
+  }
   return `${quarter} ${year}`;
 };
 
@@ -202,6 +205,9 @@ export default function CellTherapyDashboard() {
 
   // Date range slider state - initialize with full range
   const [dateRange, setDateRange] = useState<number[]>([0, 0]);
+  
+  // Time resolution state
+  const [timeResolution, setTimeResolution] = useState<"quarterly" | "annual">("quarterly");
 
   // Update date range when periods change
   useEffect(() => {
@@ -314,6 +320,27 @@ export default function CellTherapyDashboard() {
     );
   }, [data, selectedApprovalTypes, selectedDiseaseIndications]);
 
+  // Mobile responsive state
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 900);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Function to get disease display name for mobile (use ID) or desktop (use name)
+  const getDiseaseDisplayName = useCallback((disease: { id: string; name: string }): string => {
+    if (isMobile) {
+      return disease.id;
+    }
+    return disease.name;
+  }, [isMobile]);
+
   // Process data for ProductsByDisease chart
   const productsByDiseaseChartData: ProductsByDiseaseData[] = useMemo(() => {
     if (!data) return [];
@@ -329,7 +356,8 @@ export default function CellTherapyDashboard() {
 
     const grouped = data.diseases.reduce<Record<string, ProductsByDiseaseData>>(
       (acc, disease) => {
-        acc[disease.name] = { disease: disease.name };
+        const displayName = getDiseaseDisplayName(disease);
+        acc[disease.name] = { disease: displayName };
         return acc;
       },
       {}
@@ -373,7 +401,7 @@ export default function CellTherapyDashboard() {
         );
         return totalB - totalA;
       });
-  }, [data, selectedRegionsForDisease, selectedMechanisms]);
+  }, [data, selectedRegionsForDisease, selectedMechanisms, getDiseaseDisplayName]);
 
   // Process data for CostByTherapy chart
   const costByTherapyChartData: CostByTherapyData[] = useMemo(() => {
@@ -437,6 +465,10 @@ export default function CellTherapyDashboard() {
 
   const handleDateRangeChange = (range: number[]) => {
     setDateRange(range);
+  };
+
+  const handleTimeResolutionChange = (resolution: "quarterly" | "annual") => {
+    setTimeResolution(resolution);
   };
 
   const handleViewModeChange = (mode: "revenue" | "patients") => {
@@ -570,10 +602,16 @@ export default function CellTherapyDashboard() {
       label: "Disease Indication",
       options: availableOptions.diseaseIndications.map((id) => {
         const disease = data?.diseases.find((d) => d.id === id);
+        if (isMobile) {
+          return id;
+        }
         return disease ? `${disease.name} (${id})` : id;
       }),
       selectedValues: selectedDiseaseIndications.map((id) => {
         const disease = data?.diseases.find((d) => d.id === id);
+        if (isMobile) {
+          return id;
+        }
         return disease ? `${disease.name} (${id})` : id;
       }),
       onToggle: (value: string) => {
@@ -608,6 +646,8 @@ export default function CellTherapyDashboard() {
         onTherapyToggle={handleTherapyToggle}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
+        timeResolution={timeResolution}
+        onTimeResolutionChange={handleTimeResolutionChange}
         availableRegions={availableOptions.regions}
         availableTherapies={availableOptions.therapies}
         formatPeriod={formatPeriod}

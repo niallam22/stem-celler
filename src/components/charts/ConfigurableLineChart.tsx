@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useEffect, useState } from "react";
 
 export interface LineConfig {
   dataKey: string;
@@ -53,15 +54,36 @@ export default function ConfigurableLineChart({
     tooltip: CustomTooltip,
   } = config;
 
+  // Mobile responsiveness hook
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 675);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Adjust margins for mobile
+  const responsiveMargin = isMobile 
+    ? { top: 5, right: 15, left: 25, bottom: 40 }
+    : margin;
+
+  // Calculate minimum width for mobile to ensure readability
+  const chartWidth = isMobile ? Math.max(800, data.length * 60) : "100%";
+
   return (
-    <div style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={margin}>
+    <div style={{ height }} className={isMobile ? "overflow-x-auto" : ""}>
+      <ResponsiveContainer width={chartWidth} height="100%">
+        <LineChart data={data} margin={responsiveMargin}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
             dataKey={xAxisKey}
             tickFormatter={xAxisFormatter}
-            interval={0}
+            interval={isMobile ? "preserveStartEnd" : 0}
             angle={-45}
             textAnchor="end"
             height={60}

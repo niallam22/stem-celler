@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -85,6 +85,19 @@ export default function VerticalStackedBarChart({
   xAxisHeight = 80,
   legendPaddingTop = 0,
 }: VerticalStackedBarChartProps) {
+  // Mobile responsiveness hook
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 675);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   // Calculate totals for each x-axis item
   const dataWithTotals = useMemo(() => {
     return data.map((item) => {
@@ -109,6 +122,14 @@ export default function VerticalStackedBarChart({
     }
     return undefined;
   }, [maxTotal]);
+
+  // Adjust margins for mobile
+  const responsiveMargin = isMobile 
+    ? { top: 5, right: 15, left: 25, bottom: 40 }
+    : { top: 5, right: 30, left: 60, bottom: bottomMargin };
+
+  // Calculate minimum width for mobile to ensure readability
+  const chartWidth = isMobile ? Math.max(600, data.length * 80) : "100%";
 
   return (
     <Card>
@@ -143,16 +164,16 @@ export default function VerticalStackedBarChart({
         )}
 
         {/* Chart */}
-        <div style={{ height }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ height }} className={isMobile ? "overflow-x-auto" : ""}>
+          <ResponsiveContainer width={chartWidth} height="100%">
             <BarChart
               data={dataWithTotals}
-              margin={{ top: 5, right: 30, left: 60, bottom: bottomMargin }}
+              margin={responsiveMargin}
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey={xAxisKey}
-                interval={0}
+                interval={isMobile ? "preserveStartEnd" : 0}
                 angle={xAxisAngle}
                 textAnchor="end"
                 height={xAxisHeight}

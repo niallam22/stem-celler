@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Clock, Globe, MapPin, Phone, Search, X } from "lucide-react";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 
 // Import therapy data types and data
@@ -293,6 +293,19 @@ export default function TreatmentCenterMapClient() {
   const [mapZoom, setMapZoom] = useState<number>(6);
   const mapRef = useRef<any>(null);
 
+  // Mobile responsiveness hook
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 675);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   // Filter states
   const [selectedTherapies, setSelectedTherapies] = useState<string[]>([]);
   const [selectedDiseases, setSelectedDiseases] = useState<string[]>([]);
@@ -416,13 +429,24 @@ export default function TreatmentCenterMapClient() {
     {
       key: "diseases",
       label: "Diseases",
-      options: diseases.map((d) => d.name),
-      selectedValues: selectedDiseases.map(
-        (id) => diseases.find((d) => d.id === id)?.name || id
-      ),
-      onToggle: (diseaseName: string) => {
-        const disease = diseases.find((d) => d.name === diseaseName);
-        if (disease) toggleDisease(disease.id);
+      options: isMobile 
+        ? diseases.map((d) => d.id)
+        : diseases.map((d) => d.name),
+      selectedValues: selectedDiseases.map((id) => {
+        if (isMobile) {
+          return id;
+        }
+        return diseases.find((d) => d.id === id)?.name || id;
+      }),
+      onToggle: (value: string) => {
+        if (isMobile) {
+          // Value is already the disease ID
+          toggleDisease(value);
+        } else {
+          // Value is disease name, need to find ID
+          const disease = diseases.find((d) => d.name === value);
+          if (disease) toggleDisease(disease.id);
+        }
       },
     },
   ];

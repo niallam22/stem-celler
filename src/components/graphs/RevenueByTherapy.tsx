@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 // Import reusable components
 import ConfigurableLineChart, {
@@ -58,11 +58,13 @@ interface RevenueByTherapyProps {
   onTherapyToggle: (therapy: string) => void;
   dateRange: number[];
   onDateRangeChange: (range: number[]) => void;
+  timeResolution: "quarterly" | "annual";
+  onTimeResolutionChange: (resolution: "quarterly" | "annual") => void;
 
   // Configuration
   availableRegions: string[];
   availableTherapies: string[];
-  formatPeriod: (period: string) => string;
+  formatPeriod: (period: string, isMobile?: boolean) => string;
   getTherapyDisplayName: (therapyId: string) => string;
   getTherapyColor: (therapyId: string) => string;
 
@@ -84,6 +86,8 @@ export default function RevenueByTherapy({
   onTherapyToggle,
   dateRange,
   onDateRangeChange,
+  timeResolution,
+  onTimeResolutionChange,
   availableRegions,
   availableTherapies,
   formatPeriod,
@@ -93,6 +97,24 @@ export default function RevenueByTherapy({
   description = "Interactive line chart showing revenue and patient volume trends over time.",
   height = 400,
 }: RevenueByTherapyProps) {
+  // Mobile responsiveness hook
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 675);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Create time-resolution-aware format function
+  const resolutionAwareFormatPeriod = useMemo(() => {
+    return (period: string) => formatPeriod(period, timeResolution === 'annual');
+  }, [formatPeriod, timeResolution]);
+
   // Track which data point is being hovered with position
   const [hoveredDataPoint, setHoveredDataPoint] = useState<{
     period: string;
@@ -175,18 +197,45 @@ export default function RevenueByTherapy({
 
   // Transform aggregated data for Recharts (flatten therapy data)
   const chartDataForRecharts = useMemo(() => {
-    return aggregatedData.map((periodData) => {
-      const flattened: Record<string, any> = { period: periodData.period };
-
-      // Flatten therapy data into period-level keys for Recharts
-      Object.entries(periodData.therapies).forEach(([therapyId, metrics]) => {
-        flattened[`${therapyId}_revenue`] = metrics.revenue;
-        flattened[`${therapyId}_patients`] = metrics.patients;
+    if (timeResolution === 'annual') {
+      // Aggregate quarterly data by year
+      const yearlyData = new Map<string, Record<string, any>>();
+      
+      aggregatedData.forEach((periodData) => {
+        const year = periodData.period.split('-')[0];
+        
+        if (!yearlyData.has(year)) {
+          yearlyData.set(year, { period: year });
+        }
+        
+        const yearData = yearlyData.get(year)!;
+        
+        // Sum up therapy data for the year
+        Object.entries(periodData.therapies).forEach(([therapyId, metrics]) => {
+          const revenueKey = `${therapyId}_revenue`;
+          const patientsKey = `${therapyId}_patients`;
+          
+          yearData[revenueKey] = (yearData[revenueKey] || 0) + metrics.revenue;
+          yearData[patientsKey] = (yearData[patientsKey] || 0) + metrics.patients;
+        });
       });
+      
+      return Array.from(yearlyData.values()).sort((a, b) => a.period.localeCompare(b.period));
+    } else {
+      // Use quarterly data
+      return aggregatedData.map((periodData) => {
+        const flattened: Record<string, any> = { period: periodData.period };
 
-      return flattened;
-    });
-  }, [aggregatedData]);
+        // Flatten therapy data into period-level keys for Recharts
+        Object.entries(periodData.therapies).forEach(([therapyId, metrics]) => {
+          flattened[`${therapyId}_revenue`] = metrics.revenue;
+          flattened[`${therapyId}_patients`] = metrics.patients;
+        });
+
+        return flattened;
+      });
+    }
+  }, [aggregatedData, timeResolution]);
 
   // Chart line configuration - dynamically generated from available therapies
   const lineConfigs: LineConfig[] = useMemo(() => {
@@ -226,7 +275,7 @@ export default function RevenueByTherapy({
   // Chart configuration
   const chartConfig = useMemo(() => {
     return createChartConfig(chartDataForRecharts, "period", lineConfigs, {
-      xAxisFormatter: formatPeriod,
+      xAxisFormatter: resolutionAwareFormatPeriod,
       yAxisLabel:
         viewMode === "revenue" ? "Revenue (Millions USD)" : "Patients Treated",
       height,
@@ -235,7 +284,7 @@ export default function RevenueByTherapy({
   }, [
     chartDataForRecharts,
     lineConfigs,
-    formatPeriod,
+    resolutionAwareFormatPeriod,
     viewMode,
     height,
     getTherapyDisplayName,
@@ -300,12 +349,31 @@ export default function RevenueByTherapy({
             </Button>
           </div>
 
+          {/* Time Resolution Toggle */}
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium">Time Resolution:</span>
+            <Button
+              variant={timeResolution === "quarterly" ? "default" : "outline"}
+              size="sm"
+              onClick={() => onTimeResolutionChange("quarterly")}
+            >
+              Quarterly
+            </Button>
+            <Button
+              variant={timeResolution === "annual" ? "default" : "outline"}
+              size="sm"
+              onClick={() => onTimeResolutionChange("annual")}
+            >
+              Annual
+            </Button>
+          </div>
+
           {/* Date Range Slider */}
           <DateRangeSlider
             periods={allPeriods}
             dateRange={dateRange}
             setDateRange={onDateRangeChange}
-            formatPeriod={formatPeriod}
+            formatPeriod={resolutionAwareFormatPeriod}
           />
 
           {/* Filter Badges */}
