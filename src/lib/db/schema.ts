@@ -41,15 +41,6 @@ export const account = pgTable("account", {
   session_state: text("session_state"),
 });
 
-// Session table for NextAuth - sessionToken is the primary key, no id column needed
-export const session = pgTable("session", {
-  sessionToken: text("sessionToken").primaryKey(),
-  userId: text("userId")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  expires: timestamp("expires", { mode: "date" }).notNull(),
-});
-
 // Allowlist table - using camelCase column names for consistency
 export const allowlist = pgTable("allowlist", {
   id: text("id")
@@ -75,6 +66,7 @@ export const therapy = pgTable("therapy", {
     .$defaultFn(() => createId()),
   name: text("name").notNull(),
   manufacturer: text("manufacturer").notNull(),
+  parentCompany: text("parentCompany"),
   mechanism: text("mechanism").notNull(),
   pricePerTreatmentUsd: integer("pricePerTreatmentUsd").notNull(),
   sources: text("sources").array().notNull(),
@@ -87,11 +79,24 @@ export const disease = pgTable("disease", {
     .primaryKey()
     .$defaultFn(() => createId()),
   name: text("name").notNull(),
+  indication: text("indication"),
   category: text("category").notNull(),
   subcategory: text("subcategory"),
   icd10Code: text("icd10Code"),
   annualIncidenceUs: integer("annualIncidenceUs"),
   sources: text("sources").array().notNull(),
+  lastUpdated: timestamp("lastUpdated", { mode: "date" }).notNull(),
+});
+
+// Regulatory Body table
+export const regulatoryBody = pgTable("regulatoryBody", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  name: text("name").notNull().unique(),
+  fullName: text("fullName").notNull(),
+  region: text("region").notNull(),
+  country: text("country"),
   lastUpdated: timestamp("lastUpdated", { mode: "date" }).notNull(),
 });
 
@@ -106,6 +111,8 @@ export const therapyApproval = pgTable("therapyApproval", {
   diseaseId: text("diseaseId")
     .notNull()
     .references(() => disease.id),
+  therapyName: text("therapyName").notNull(),
+  diseaseIndication: text("diseaseIndication").notNull(),
   region: text("region").notNull(),
   approvalDate: timestamp("approvalDate", { mode: "date" }).notNull(),
   approvalType: text("approvalType").notNull(),
@@ -126,6 +133,22 @@ export const therapyRevenue = pgTable("therapyRevenue", {
   region: text("region").notNull(),
   revenueMillionsUsd: integer("revenueMillionsUsd").notNull(),
   sources: text("sources").array().notNull(),
+  lastUpdated: timestamp("lastUpdated", { mode: "date" }).notNull(),
+});
+
+// Treatment Center table
+export const treatmentCenter = pgTable("treatmentCenter", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  name: text("name").notNull(),
+  address: text("address").notNull(),
+  lat: text("lat").notNull(), // Store as text for precision, convert to number when using
+  lng: text("lng").notNull(), // Store as text for precision, convert to number when using
+  availableTherapies: text("availableTherapies").array().notNull(),
+  website: text("website"),
+  phone: text("phone"),
+  about: text("about"),
   lastUpdated: timestamp("lastUpdated", { mode: "date" }).notNull(),
 });
 
@@ -183,8 +206,6 @@ export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
 export type Account = typeof account.$inferSelect;
 export type NewAccount = typeof account.$inferInsert;
-export type Session = typeof session.$inferSelect;
-export type NewSession = typeof session.$inferInsert;
 export type Allowlist = typeof allowlist.$inferSelect;
 export type NewAllowlist = typeof allowlist.$inferInsert;
 export type VerificationToken = typeof verificationToken.$inferSelect;
@@ -193,10 +214,14 @@ export type Therapy = typeof therapy.$inferSelect;
 export type NewTherapy = typeof therapy.$inferInsert;
 export type Disease = typeof disease.$inferSelect;
 export type NewDisease = typeof disease.$inferInsert;
+export type RegulatoryBody = typeof regulatoryBody.$inferSelect;
+export type NewRegulatoryBody = typeof regulatoryBody.$inferInsert;
 export type TherapyApproval = typeof therapyApproval.$inferSelect;
 export type NewTherapyApproval = typeof therapyApproval.$inferInsert;
 export type TherapyRevenue = typeof therapyRevenue.$inferSelect;
 export type NewTherapyRevenue = typeof therapyRevenue.$inferInsert;
+export type TreatmentCenter = typeof treatmentCenter.$inferSelect;
+export type NewTreatmentCenter = typeof treatmentCenter.$inferInsert;
 export type JobQueue = typeof jobQueue.$inferSelect;
 export type NewJobQueue = typeof jobQueue.$inferInsert;
 export type Document = typeof document.$inferSelect;

@@ -5,7 +5,7 @@ export interface SummaryCardData {
   title: string;
   value: string | number;
   subtitle: string;
-  formatter?: (value: any) => string;
+  formatter?: (value: string | number) => string;
 }
 
 interface SummaryCardsProps {
@@ -45,8 +45,8 @@ export const createSummaryCards = (
   data: Array<{
     id: string;
     title: string;
-    value: any;
+    value: string | number;
     subtitle: string;
-    formatter?: (value: any) => string;
+    formatter?: (value: string | number) => string;
   }>
 ): SummaryCardData[] => data;

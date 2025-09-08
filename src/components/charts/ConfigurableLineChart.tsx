@@ -8,17 +8,17 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 export interface LineConfig {
   dataKey: string;
   name: string;
   stroke: string;
   strokeWidth?: number;
-  dot?: any;
+  dot?: boolean | { fill?: string; strokeWidth?: number; r?: number };
   visible: boolean;
   onDotMouseEnter?: (
-    payload: any,
+    payload: Record<string, unknown>,
     dataKey: string,
     position?: { x: number; y: number }
   ) => void;
@@ -26,14 +26,14 @@ export interface LineConfig {
 }
 
 export interface ChartConfig {
-  data: any[];
+  data: Record<string, unknown>[];
   xAxisKey: string;
   lines: LineConfig[];
-  xAxisFormatter?: (value: any) => string;
+  xAxisFormatter?: (value: string | number) => string;
   yAxisLabel?: string;
   height?: number;
   margin?: { top: number; right: number; left: number; bottom: number };
-  tooltip?: React.ComponentType<any>;
+  tooltip?: React.ComponentType<unknown>;
 }
 
 interface ConfigurableLineChartProps {
@@ -56,6 +56,7 @@ export default function ConfigurableLineChart({
 
   // Mobile responsiveness hook
   const [isMobile, setIsMobile] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -67,16 +68,23 @@ export default function ConfigurableLineChart({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Reset scroll position to start on mobile
+  useEffect(() => {
+    if (isMobile && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = 0;
+    }
+  }, [isMobile, data]);
+
   // Adjust margins for mobile
   const responsiveMargin = isMobile 
-    ? { top: 5, right: 15, left: 25, bottom: 40 }
+    ? { top: 5, right: 10, left: 15, bottom: 40 }
     : margin;
 
   // Calculate minimum width for mobile to ensure readability
   const chartWidth = isMobile ? Math.max(800, data.length * 60) : "100%";
 
   return (
-    <div style={{ height }} className={isMobile ? "overflow-x-auto" : ""}>
+    <div ref={scrollContainerRef} style={{ height }} className={isMobile ? "overflow-x-auto" : ""}>
       <ResponsiveContainer width={chartWidth} height="100%">
         <LineChart data={data} margin={responsiveMargin}>
           <CartesianGrid strokeDasharray="3 3" />
@@ -104,7 +112,14 @@ export default function ConfigurableLineChart({
           {lines
             .filter((line) => line.visible)
             .map((line, index) => {
-              const renderCustomDot = (props: any) => {
+              const renderCustomDot = (props: {
+                cx: number;
+                cy: number;
+                stroke: string;
+                payload: Record<string, unknown>;
+                value: number | undefined | null;
+                index: number;
+              }) => {
                 const {
                   cx,
                   cy,
@@ -115,7 +130,7 @@ export default function ConfigurableLineChart({
                 } = props;
 
                 if (value === undefined || value === null) {
-                  return null;
+                  return <g key={`empty-dot-${line.dataKey}-${dotIndex}`} />;
                 }
 
                 const handleMouseEnter = () => {
@@ -180,15 +195,15 @@ export default function ConfigurableLineChart({
 
 // Helper function to create chart configs
 export const createChartConfig = (
-  data: any[],
+  data: Record<string, unknown>[],
   xAxisKey: string,
   lines: LineConfig[],
   options?: {
-    xAxisFormatter?: (value: any) => string;
+    xAxisFormatter?: (value: string | number) => string;
     yAxisLabel?: string;
     height?: number;
     margin?: { top: number; right: number; left: number; bottom: number };
-    tooltip?: React.ComponentType<any>;
+    tooltip?: React.ComponentType<unknown>;
   }
 ): ChartConfig => ({
   data,

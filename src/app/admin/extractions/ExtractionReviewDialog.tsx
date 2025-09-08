@@ -22,6 +22,7 @@ import {
   Edit,
   XCircle
 } from "lucide-react";
+import { formatDate } from "@/lib/utils/date";
 
 interface ExtractionReviewDialogProps {
   extractionId: string;
@@ -163,7 +164,7 @@ export default function ExtractionReviewDialog({
                   <CardContent className="space-y-2">
                     <div><strong>Disease:</strong> {approval.diseaseName}</div>
                     <div><strong>Region:</strong> {approval.region}</div>
-                    <div><strong>Approval Date:</strong> {new Date(approval.approvalDate).toLocaleDateString()}</div>
+                    <div><strong>Approval Date:</strong> {formatDate(approval.approvalDate)}</div>
                     <div><strong>Type:</strong> {approval.approvalType}</div>
                     <div><strong>Regulatory Body:</strong> {approval.regulatoryBody}</div>
                     <div><strong>Sources:</strong> {approval.sources.join(", ")}</div>

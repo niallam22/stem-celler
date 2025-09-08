@@ -394,6 +394,8 @@ export const extractionAdminRouter = createTRPCRouter({
               await tx.insert(therapyApproval).values({
                 therapyId,
                 diseaseId,
+                therapyName: approval.therapyName,
+                diseaseIndication: approval.diseaseName,
                 region: approval.region,
                 approvalDate: approval.approvalDate,
                 approvalType: approval.approvalType,

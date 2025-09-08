@@ -4,7 +4,7 @@ interface TooltipItem {
   name: string;
   value: string | number;
   color: string;
-  formatter?: (value: any) => string;
+  formatter?: (value: string | number) => string;
 }
 
 interface CustomTooltipProps {

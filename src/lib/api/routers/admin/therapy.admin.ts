@@ -8,6 +8,7 @@ import { TRPCError } from "@trpc/server";
 const therapySchema = z.object({
   name: z.string().min(1, "Name is required"),
   manufacturer: z.string().min(1, "Manufacturer is required"),
+  parentCompany: z.string().optional(),
   mechanism: z.string().min(1, "Mechanism is required"),
   pricePerTreatmentUsd: z.number().positive("Price must be positive"),
   sources: z.array(z.string()).min(1, "At least one source is required"),
@@ -20,7 +21,7 @@ export const therapyAdminRouter = createTRPCRouter({
         page: z.number().min(1).default(1),
         pageSize: z.number().min(1).max(100).default(10),
         search: z.string().optional(),
-        sortBy: z.enum(["name", "manufacturer", "pricePerTreatmentUsd", "lastUpdated"]).default("name"),
+        sortBy: z.enum(["name", "manufacturer", "parentCompany", "pricePerTreatmentUsd", "lastUpdated"]).default("name"),
         sortOrder: z.enum(["asc", "desc"]).default("asc"),
       })
     )
@@ -206,5 +207,29 @@ export const therapyAdminRouter = createTRPCRouter({
         .where(eq(therapy.manufacturer, input.manufacturer));
 
       return therapies;
+    }),
+
+  bulkCreate: adminProcedure
+    .input(
+      z.object({
+        therapies: z.array(therapySchema),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const therapiesWithTimestamp = input.therapies.map(therapy => ({
+        ...therapy,
+        lastUpdated: new Date(),
+      }));
+
+      const createdTherapies = await db
+        .insert(therapy)
+        .values(therapiesWithTimestamp)
+        .returning();
+
+      return {
+        success: true,
+        created: createdTherapies.length,
+        therapies: createdTherapies,
+      };
     }),
 });

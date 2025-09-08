@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { Document, therapy } from "@/lib/db/schema";
-import { Send, StateGraph, Annotation } from "@langchain/langgraph";
-import { eq } from "drizzle-orm";
+import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
+import { sql } from "drizzle-orm";
 import { PDFPageExtractor } from "../utils/pdf-page-extractor";
 
 // Token usage type for proper typing
@@ -14,7 +14,6 @@ import { AgentLogger } from "./agent-logger";
 import { DocumentClassifierAgent } from "./document-classifier-agent";
 import { RevenueVerifierAgent } from "./revenue-verifier-agent";
 import {
-  EnhancedExtractionState,
   ExtractedData,
   ExtractionResults,
   TextSection,
@@ -139,6 +138,11 @@ export class EnhancedOrchestratorAgent {
           totalPages: pdfMetadata.totalPages || 0,
           pageTexts: pdfMetadata.pageTexts || new Map(),
         },
+        documentInfo: undefined,
+        therapyList: undefined,
+        revenueResults: undefined,
+        finalResult: undefined,
+        error: undefined,
         tokensUsed: {
           classification: 0,
           extraction: 0,
@@ -183,21 +187,19 @@ export class EnhancedOrchestratorAgent {
   }
 
   private createProcessingGraph() {
-    const graph = new StateGraph(EnhancedExtractionStateAnnotation);
+    const graph = new StateGraph(EnhancedExtractionStateAnnotation)
+      .addNode("classify_document", this.classifyDocument.bind(this))
+      .addNode("lookup_therapies", this.lookupTherapies.bind(this))
+      .addNode("extract_revenue", this.extractRevenue.bind(this))
+      .addNode("finalize_results", this.finalizeResults.bind(this))
+      .addEdge(START, "classify_document")
+      .addEdge("classify_document", "lookup_therapies")
+      .addEdge("lookup_therapies", "extract_revenue")
+      .addEdge("extract_revenue", "finalize_results")
+      .addEdge("finalize_results", END)
+      .compile();
 
-    // Node definitions - simplified workflow
-    graph.addNode("classify_document", this.classifyDocument.bind(this));
-    graph.addNode("lookup_therapies", this.lookupTherapies.bind(this));
-    graph.addNode("extract_revenue", this.extractRevenue.bind(this));
-    graph.addNode("finalize_results", this.finalizeResults.bind(this));
-
-    // Edge definitions - linear workflow
-    graph.addEdge("__start__", "classify_document");
-    graph.addEdge("classify_document", "lookup_therapies");
-    graph.addEdge("lookup_therapies", "extract_revenue");
-    graph.addEdge("extract_revenue", "finalize_results");
-
-    return graph.compile();
+    return graph;
   }
 
   private async classifyDocument(
@@ -211,7 +213,7 @@ export class EnhancedOrchestratorAgent {
       .map(([, text]) => text)
       .join("\n");
 
-    const classification = await this.documentClassifier.classify(firstPages);
+    const classification = await this.documentClassifier.classify(firstPages, state.document);
 
     return {
       documentInfo: {
@@ -247,15 +249,18 @@ export class EnhancedOrchestratorAgent {
         id: therapy.id,
         name: therapy.name,
         manufacturer: therapy.manufacturer,
+        parentCompany: therapy.parentCompany,
       })
       .from(therapy)
-      .where(eq(therapy.manufacturer, state.documentInfo.companyName));
+      .where(
+        sql`${therapy.manufacturer} = ${state.documentInfo.companyName} OR ${therapy.parentCompany} = ${state.documentInfo.companyName}`
+      );
 
     console.log(`Found ${therapies.length} known therapies`);
 
     // If no therapies found, terminate processing with error
     if (therapies.length === 0) {
-      const errorMessage = `No registered therapies found for company: ${state.documentInfo.companyName}. Please register therapies for this company before processing documents.`;
+      const errorMessage = `No registered therapies found for company: ${state.documentInfo.companyName}. Document: ${state.document.fileName}. Please register therapies for this company before processing documents.`;
       console.error(`❌ ${errorMessage}`);
       throw new Error(errorMessage);
     }
@@ -271,10 +276,7 @@ export class EnhancedOrchestratorAgent {
     if (!state.therapyList || state.therapyList.length === 0) {
       console.warn("No therapies found, skipping revenue extraction");
       return {
-        revenueResults: {
-          revenue: [],
-          confidence: 0,
-        },
+        revenueResults: [],
       };
     }
 
@@ -336,7 +338,14 @@ export class EnhancedOrchestratorAgent {
             console.log(`💰 Snippet ${index + 1} extracted ${results.revenue?.length || 0} revenue records with ${results.confidence}% confidence`);
             
             return {
-              revenue: results.revenue || [],
+              revenue: (results.revenue || []) as Array<{
+                therapyName: string;
+                period: string;
+                region: string;
+                revenueMillionsUsd: number;
+                sources: string[];
+                calculation?: string;
+              }>,
               confidence: results.confidence,
               snippetIndex: index + 1,
             };

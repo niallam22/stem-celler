@@ -12,8 +12,8 @@ import RevenueByTherapy from "./RevenueByTherapy";
 import { getTherapyColor } from "@/lib/colour-utils";
 import CostByTherapy, { CostByTherapyData } from "./CostByTherapy";
 import TreatmentCenterMap from "./TreatmentCenterMap";
-import { api } from "@/lib/trpc/react";
 import { processRevenueWithHierarchy, ProcessedRevenueData as HierarchicalRevenueData } from "@/lib/utils/revenue-hierarchy";
+import type { Therapy, Disease, TherapyApproval, TherapyRevenue, TreatmentCenter } from "@/lib/db/schema";
 
 // Helper functions
 const periodToDate = (period: string): Date => {
@@ -74,7 +74,10 @@ const computeAvailableOptions = (
       approvalType: string;
       regulatoryBody: string;
       region: string;
-      diseaseId: string;
+      diseaseId?: string;
+      diseaseIndication?: string | null;
+      therapyId?: string;
+      therapyName?: string | null;
     }>;
   },
   hierarchicalRevenue?: Array<{ region: string }>
@@ -94,7 +97,7 @@ const computeAvailableOptions = (
       ...new Set(data.therapyApprovals.map((a) => a.regulatoryBody)),
     ],
     diseaseIndications: [
-      ...new Set(data.therapyApprovals.map((a) => a.diseaseId)),
+      ...new Set(data.therapyApprovals.map((a) => a.diseaseIndication || a.diseaseId || "")),
     ],
     mechanisms: [...new Set(data.therapies.map((t) => t.mechanism))],
     manufacturers: [...new Set(data.therapies.map((t) => t.manufacturer))],
@@ -102,9 +105,19 @@ const computeAvailableOptions = (
   };
 };
 
-export default function CellTherapyDashboard() {
-  // === FETCH DATA FROM DATABASE ===
-  const { data, isLoading, error } = api.therapy.getDashboardData.useQuery();
+interface CellTherapyDashboardProps {
+  data: {
+    therapies: Therapy[];
+    diseases: Disease[];
+    therapyApprovals: TherapyApproval[];
+    therapyRevenue: TherapyRevenue[];
+    treatmentCenters: TreatmentCenter[];
+  };
+}
+
+export default function CellTherapyDashboard({ data }: CellTherapyDashboardProps) {
+  // === ALWAYS USE SERVER-PROVIDED DATA ===
+  // No API calls from client - data always comes from SSR
   
   
   // Process revenue data with hierarchy first
@@ -148,7 +161,7 @@ export default function CellTherapyDashboard() {
   const [selectedApprovalTypes, setSelectedApprovalTypes] = useState<string[]>(() =>
     data ? availableOptions.approvalTypes : []
   );
-  const [selectedRegulatoryBodies, setSelectedRegulatoryBodies] = useState<
+  const [, setSelectedRegulatoryBodies] = useState<
     string[]
   >(() => data ? availableOptions.regulatoryBodies : []);
 
@@ -296,15 +309,15 @@ export default function CellTherapyDashboard() {
     const filteredApprovals = data.therapyApprovals.filter(
       (approval) =>
         selectedApprovalTypes.includes(approval.approvalType) &&
-        selectedDiseaseIndications.includes(approval.diseaseId)
+        selectedDiseaseIndications.includes(approval.diseaseIndication || approval.diseaseId || "")
     );
 
     const grouped = filteredApprovals.reduce<
       Record<string, ApprovalsByProductData>
     >((acc, approval) => {
-      const therapyName =
+      const therapyName = approval.therapyName ||
         data.therapies.find((t) => t.id === approval.therapyId)?.name ||
-        approval.therapyId;
+        approval.therapyId || "Unknown";
 
       if (!acc[therapyName]) {
         acc[therapyName] = { therapy: therapyName };
@@ -315,9 +328,16 @@ export default function CellTherapyDashboard() {
       return acc;
     }, {});
 
-    return Object.values(grouped).sort((a, b) =>
-      a.therapy.localeCompare(b.therapy)
-    );
+    // Sort by total approval count in descending order
+    return Object.values(grouped).sort((a, b) => {
+      const totalA = Object.keys(a)
+        .filter(key => key !== 'therapy')
+        .reduce((sum, key) => sum + (a[key] as number || 0), 0);
+      const totalB = Object.keys(b)
+        .filter(key => key !== 'therapy')
+        .reduce((sum, key) => sum + (b[key] as number || 0), 0);
+      return totalB - totalA;
+    });
   }, [data, selectedApprovalTypes, selectedDiseaseIndications]);
 
   // Mobile responsive state
@@ -333,10 +353,10 @@ export default function CellTherapyDashboard() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Function to get disease display name for mobile (use ID) or desktop (use name)
-  const getDiseaseDisplayName = useCallback((disease: { id: string; name: string }): string => {
+  // Function to get disease display name for mobile (use indication) or desktop (use name)
+  const getDiseaseDisplayName = useCallback((disease: { id: string; name: string; indication?: string | null }): string => {
     if (isMobile) {
-      return disease.id;
+      return disease.indication || disease.name;
     }
     return disease.name;
   }, [isMobile]);
@@ -350,7 +370,7 @@ export default function CellTherapyDashboard() {
 
     const uniqueCombinations = new Set(
       filteredApprovals.map(
-        (approval) => `${approval.therapyId}-${approval.diseaseId}-${approval.region}`
+        (approval) => `${approval.therapyName || approval.therapyId}-${approval.diseaseIndication || approval.diseaseId}-${approval.region}`
       )
     );
 
@@ -364,9 +384,11 @@ export default function CellTherapyDashboard() {
     );
 
     uniqueCombinations.forEach((combo) => {
-      const [therapyId, diseaseId, region] = combo.split("-");
-      const therapy = data.therapies.find((t) => t.id === therapyId);
-      const disease = data.diseases.find((d) => d.id === diseaseId);
+      const [therapyNameOrId, diseaseIndicationOrId] = combo.split("-");
+      // Try to find therapy by name first (new structure), then by ID (old structure)
+      const therapy = data.therapies.find((t) => t.name === therapyNameOrId || t.id === therapyNameOrId);
+      // Try to find disease by indication first, then by ID
+      const disease = data.diseases.find((d) => d.indication === diseaseIndicationOrId || d.id === diseaseIndicationOrId);
 
       if (!therapy || !selectedMechanisms.includes(therapy.mechanism)) {
         return;
@@ -410,25 +432,25 @@ export default function CellTherapyDashboard() {
     const approvedTherapyIds = new Set(
       data.therapyApprovals
         .filter((approval) =>
-          selectedDiseaseIndications.includes(approval.diseaseId)
+          selectedDiseaseIndications.includes(approval.diseaseIndication || approval.diseaseId || "")
         )
-        .map((approval) => approval.therapyId)
+        .map((approval) => approval.therapyName || approval.therapyId || "")
     );
 
     const filteredTherapies = data.therapies.filter((therapy) =>
-      approvedTherapyIds.has(therapy.id)
+      approvedTherapyIds.has(therapy.name) || approvedTherapyIds.has(therapy.id)
     );
 
     // Create data structure where each therapy has its own column
     return filteredTherapies
       .map((therapy) => {
-        const dataPoint: any = { therapy: therapy.name };
+        const dataPoint: CostByTherapyData = { therapy: therapy.name };
 
         // Add cost for this therapy and 0 for others (to ensure proper coloring)
         // Convert to thousands for better y-axis readability
         filteredTherapies.forEach((t) => {
           dataPoint[t.name] =
-            t.id === therapy.id ? (t.pricePerTreatmentUsd / 1000) : 0;
+            t.name === therapy.name ? (t.pricePerTreatmentUsd / 1000) : 0;
         });
 
         return dataPoint;
@@ -483,9 +505,9 @@ export default function CellTherapyDashboard() {
   };
 
   // Helper function to get therapy color using utility
-  const getTherapyColorForId = (therapyId: string): string => {
+  const getTherapyColorForId = useCallback((therapyId: string): string => {
     return getTherapyColor(therapyId, availableOptions.therapies);
-  };
+  }, [availableOptions.therapies]);
 
   // Config for ApprovalsByProduct chart
   const approvalsByProductStacks = availableOptions.regulatoryBodies.map(
@@ -513,21 +535,12 @@ export default function CellTherapyDashboard() {
     {
       key: "diseaseIndication",
       label: "Disease Indication",
-      options: availableOptions.diseaseIndications.map((id) => {
-        const disease = data?.diseases.find((d) => d.id === id);
-        return disease ? `${disease.name} (${id})` : id;
-      }),
-      selectedValues: selectedDiseaseIndications.map((id) => {
-        const disease = data?.diseases.find((d) => d.id === id);
-        return disease ? `${disease.name} (${id})` : id;
-      }),
+      options: availableOptions.diseaseIndications, // These are already indication strings
+      selectedValues: selectedDiseaseIndications, // These should also be indication strings
       onToggle: (value: string) => {
-        // Extract ID from the formatted string if it contains parentheses
-        const id = value.includes("(")
-          ? value.match(/\(([^)]+)\)/)?.[1] || value
-          : value;
+        // Toggle the indication string directly
         setSelectedDiseaseIndications((prev) =>
-          prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
+          prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
         );
       },
     },
@@ -582,57 +595,41 @@ export default function CellTherapyDashboard() {
     const approvedTherapyIds = new Set(
       data.therapyApprovals
         .filter((approval) =>
-          selectedDiseaseIndications.includes(approval.diseaseId)
+          selectedDiseaseIndications.includes(approval.diseaseIndication || approval.diseaseId || "")
         )
-        .map((approval) => approval.therapyId)
+        .map((approval) => approval.therapyName || approval.therapyId || "")
     );
 
     return data.therapies
-      .filter((therapy) => approvedTherapyIds.has(therapy.id))
+      .filter((therapy) => approvedTherapyIds.has(therapy.name))
       .map((therapy) => ({
         key: therapy.name,
         name: therapy.name,
         color: getTherapyColorForId(therapy.id),
       }));
-  }, [data, selectedDiseaseIndications]);
+  }, [data, selectedDiseaseIndications, getTherapyColorForId]);
 
   const costByTherapyFilters = [
     {
       key: "diseaseIndication",
       label: "Disease Indication",
-      options: availableOptions.diseaseIndications.map((id) => {
-        const disease = data?.diseases.find((d) => d.id === id);
-        if (isMobile) {
-          return id;
-        }
-        return disease ? `${disease.name} (${id})` : id;
-      }),
-      selectedValues: selectedDiseaseIndications.map((id) => {
-        const disease = data?.diseases.find((d) => d.id === id);
-        if (isMobile) {
-          return id;
-        }
-        return disease ? `${disease.name} (${id})` : id;
-      }),
+      options: availableOptions.diseaseIndications, // These are already indication strings
+      selectedValues: selectedDiseaseIndications, // These should also be indication strings
       onToggle: (value: string) => {
-        // Extract ID from the formatted string if it contains parentheses
-        const id = value.includes("(")
-          ? value.match(/\(([^)]+)\)/)?.[1] || value
-          : value;
+        // Toggle the indication string directly
         setSelectedDiseaseIndications((prev) =>
-          prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
+          prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
         );
       },
     },
   ];
 
   // Early returns after all hooks and calculations
-  if (isLoading) return <div className="p-6">Loading therapy data...</div>;
-  if (error) return <div className="p-6">Error loading data: {error.message}</div>;
+  // Data is always provided from server - no loading state needed
   if (!data) return <div className="p-6">No data available</div>;
 
   return (
-    <div className="w-full space-y-8 p-6">
+    <div className="w-full space-y-8 p-0 sm:p-6">
       {/* Revenue by Therapy Line Chart */}
       <RevenueByTherapy
         chartData={chartData}
@@ -664,6 +661,7 @@ export default function CellTherapyDashboard() {
         filters={approvalsByProductFilters}
         title="Regulatory Approvals by Product"
         description="Number of regulatory approvals for each therapy, stacked by regulatory body. Filter by approval type and disease indication."
+        diseases={data?.diseases.map(d => ({ id: d.id, name: d.name, indication: d.indication || null }))}
       />
 
       {/* Products by Disease Bar Chart */}
@@ -673,6 +671,7 @@ export default function CellTherapyDashboard() {
         filters={productsByDiseaseFilters}
         title="Approved Products by Disease"
         description="Number of approved therapeutic products for each disease indication, stacked by manufacturer. Filter by region and mechanism of action."
+        diseases={data?.diseases.map(d => ({ id: d.id, name: d.name, indication: d.indication || null }))}
       />
 
       {/* Cost by Therapy Bar Chart */}
@@ -682,9 +681,15 @@ export default function CellTherapyDashboard() {
         filters={costByTherapyFilters}
         title="Treatment Cost Comparison"
         description="Cost per treatment for different CAR-T therapies approved for selected disease indications."
+        diseases={data?.diseases}
       />
 
-      <TreatmentCenterMap />
+      <TreatmentCenterMap 
+        therapies={data.therapies}
+        diseases={data.diseases}
+        approvals={data.therapyApprovals}
+        treatmentCenters={data.treatmentCenters}
+      />
     </div>
   );
 }

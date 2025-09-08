@@ -1,20 +1,20 @@
 export interface TooltipField {
   key: string;
   label: string;
-  formatter?: (value: any) => string;
+  formatter?: (value: unknown) => string;
   color?: string;
   style?: React.CSSProperties;
 }
 
 export interface TooltipConfig {
-  title?: (data: any, label: string) => string;
+  title?: (data: Record<string, unknown>, label: string) => string;
   fields: TooltipField[];
   className?: string;
 }
 
 interface TooltipProps {
   active?: boolean;
-  payload?: any[];
+  payload?: Array<{ payload: Record<string, unknown> }>;
   label?: string;
   config: TooltipConfig;
 }
@@ -41,7 +41,9 @@ export default function Tooltip({
       {title && <p className="font-semibold">{title}</p>}
       {config.fields.map((field, index) => {
         const value = data[field.key];
-        const displayValue = field.formatter ? field.formatter(value) : value;
+        const displayValue = field.formatter 
+          ? field.formatter(value) 
+          : String(value ?? '');
         const style =
           field.style || (field.color ? { color: field.color } : {});
         const className = field.color ? "" : "text-gray-500 text-sm";
@@ -60,7 +62,7 @@ export default function Tooltip({
 export const createTooltipConfig = (
   fields: TooltipField[],
   options?: {
-    title?: (data: any, label: string) => string;
+    title?: (data: Record<string, unknown>, label: string) => string;
     className?: string;
   }
 ): TooltipConfig => ({

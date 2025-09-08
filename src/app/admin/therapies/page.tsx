@@ -20,13 +20,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Upload } from "lucide-react";
 import { toast } from "react-toastify";
 import TherapyFormDialog from "./TherapyFormDialog";
 import DeleteTherapyDialog from "./DeleteTherapyDialog";
+import BulkAddDialog, { BulkAddColumn } from "@/components/admin/BulkAddDialog";
+import CopyTemplate from "@/components/admin/CopyTemplate";
+import { formatDate } from "@/lib/utils/date";
 
-type SortBy = "name" | "manufacturer" | "pricePerTreatmentUsd" | "lastUpdated";
+type SortBy = "name" | "manufacturer" | "parentCompany" | "pricePerTreatmentUsd" | "lastUpdated";
 type SortOrder = "asc" | "desc";
+
+type TherapyInput = {
+  name: string;
+  manufacturer: string;
+  parentCompany?: string;
+  mechanism: string;
+  pricePerTreatmentUsd: number;
+  sources: string[];
+};
 
 export default function TherapiesPage() {
   const [page, setPage] = useState(1);
@@ -35,6 +47,7 @@ export default function TherapiesPage() {
   const [sortBy, setSortBy] = useState<SortBy>("name");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
   const [editingTherapy, setEditingTherapy] = useState<string | null>(null);
   const [deletingTherapy, setDeletingTherapy] = useState<{
     id: string;
@@ -48,6 +61,8 @@ export default function TherapiesPage() {
     sortBy,
     sortOrder,
   });
+
+  const bulkCreateMutation = api.admin.therapy.bulkCreate.useMutation();
 
   const handleSort = (column: SortBy) => {
     if (sortBy === column) {
@@ -76,6 +91,48 @@ export default function TherapiesPage() {
     }).format(price);
   };
 
+  // Bulk add configuration
+  const bulkAddColumns: BulkAddColumn[] = [
+    { key: "name", label: "Name", required: true, type: "string" },
+    { key: "manufacturer", label: "Manufacturer", required: true, type: "string" },
+    { key: "parentCompany", label: "Parent Company", required: false, type: "string" },
+    { key: "mechanism", label: "Mechanism", required: true, type: "string" },
+    { key: "pricePerTreatmentUsd", label: "Price Per Treatment (USD)", required: true, type: "number" },
+    { key: "sources", label: "Sources", required: true, type: "array" },
+  ];
+
+  const bulkAddExampleData = [
+    {
+      name: "Yescarta",
+      manufacturer: "Kite Pharma",
+      parentCompany: "Gilead",
+      mechanism: "CAR-T",
+      pricePerTreatmentUsd: 373000,
+      sources: ["https://www.gilead.com/<exact-route-to-source-data>"]
+    },
+    {
+      name: "Kymriah",
+      manufacturer: "Novartis", 
+      parentCompany: "",
+      mechanism: "CAR-T",
+      pricePerTreatmentUsd: 475000,
+      sources: ["https://www.novartis.com/<exact-route-to-source-data>"]
+    }
+  ];
+
+  const handleBulkAdd = async (data: Record<string, unknown>[]) => {
+    try {
+      const therapies = data as TherapyInput[];
+      await bulkCreateMutation.mutateAsync({ therapies });
+      toast.success(`Successfully added ${therapies.length} therapies`);
+      refetch();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to add therapies";
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -85,10 +142,21 @@ export default function TherapiesPage() {
             Manage stem cell therapy records
           </p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add New Therapy
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add New Therapy
+          </Button>
+          <Button variant="outline" onClick={() => setIsBulkAddOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Add
+          </Button>
+          <CopyTemplate 
+            columns={bulkAddColumns}
+            exampleData={bulkAddExampleData}
+            name="Therapy"
+          />
+        </div>
       </div>
 
       <Card>
@@ -149,6 +217,16 @@ export default function TherapiesPage() {
                       {getSortIcon("manufacturer")}
                     </Button>
                   </TableHead>
+                  <TableHead>
+                    <Button
+                      variant="ghost"
+                      className="h-auto p-0 font-medium"
+                      onClick={() => handleSort("parentCompany")}
+                    >
+                      Parent Company
+                      {getSortIcon("parentCompany")}
+                    </Button>
+                  </TableHead>
                   <TableHead>Mechanism</TableHead>
                   <TableHead>
                     <Button
@@ -176,13 +254,13 @@ export default function TherapiesPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">
+                    <TableCell colSpan={7} className="text-center">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : data?.therapies.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">
+                    <TableCell colSpan={7} className="text-center">
                       No therapies found
                     </TableCell>
                   </TableRow>
@@ -193,6 +271,7 @@ export default function TherapiesPage() {
                         {therapy.name}
                       </TableCell>
                       <TableCell>{therapy.manufacturer}</TableCell>
+                      <TableCell>{therapy.parentCompany || "-"}</TableCell>
                       <TableCell className="max-w-[200px] truncate">
                         {therapy.mechanism}
                       </TableCell>
@@ -200,7 +279,7 @@ export default function TherapiesPage() {
                         {formatPrice(therapy.pricePerTreatmentUsd)}
                       </TableCell>
                       <TableCell>
-                        {new Date(therapy.lastUpdated).toLocaleDateString()}
+                        {formatDate(therapy.lastUpdated)}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -292,6 +371,17 @@ export default function TherapiesPage() {
           refetch();
           setDeletingTherapy(null);
         }}
+      />
+
+      <BulkAddDialog
+        open={isBulkAddOpen}
+        onOpenChange={setIsBulkAddOpen}
+        title="Bulk Add Therapies"
+        description="Add multiple therapies at once by providing JSON data. Each therapy should include name, manufacturer, mechanism, price, and sources."
+        columns={bulkAddColumns}
+        exampleData={bulkAddExampleData}
+        onSubmit={handleBulkAdd}
+        isLoading={bulkCreateMutation.isPending}
       />
     </div>
   );

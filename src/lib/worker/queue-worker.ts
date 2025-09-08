@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { jobQueue, document, extraction } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { DocumentProcessor } from "./document-processor";
+import { DocumentProcessor, ExtractedData } from "./document-processor";
 
 export class QueueWorker {
   private isRunning = false;
@@ -138,7 +138,7 @@ export class QueueWorker {
     }
   }
 
-  private async storeExtractionResult(documentId: string, extractedData: any) {
+  private async storeExtractionResult(documentId: string, extractedData: ExtractedData) {
     // Check if extraction already exists
     const existing = await db
       .select()

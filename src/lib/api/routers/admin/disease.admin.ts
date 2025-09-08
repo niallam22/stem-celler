@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 
 const diseaseSchema = z.object({
   name: z.string().min(1, "Name is required"),
+  indication: z.string().optional(),
   category: z.string().min(1, "Category is required"),
   subcategory: z.string().optional(),
   icd10Code: z.string().optional(),
@@ -219,4 +220,28 @@ export const diseaseAdminRouter = createTRPCRouter({
       subcategories: subcategories.map(s => s.subcategory).filter((s): s is string => Boolean(s)),
     };
   }),
+
+  bulkCreate: adminProcedure
+    .input(
+      z.object({
+        diseases: z.array(diseaseSchema),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const diseasesWithTimestamp = input.diseases.map(diseaseData => ({
+        ...diseaseData,
+        lastUpdated: new Date(),
+      }));
+
+      const createdDiseases = await db
+        .insert(disease)
+        .values(diseasesWithTimestamp)
+        .returning();
+
+      return {
+        success: true,
+        created: createdDiseases.length,
+        diseases: createdDiseases,
+      };
+    }),
 });

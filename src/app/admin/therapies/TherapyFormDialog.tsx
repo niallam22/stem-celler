@@ -30,6 +30,7 @@ import { Plus, X } from "lucide-react";
 const therapyFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   manufacturer: z.string().min(1, "Manufacturer is required"),
+  parentCompany: z.string().optional(),
   mechanism: z.string().min(1, "Mechanism is required"),
   pricePerTreatmentUsd: z.string().refine((val) => {
     const num = Number(val);
@@ -60,6 +61,7 @@ export default function TherapyFormDialog({
     defaultValues: {
       name: "",
       manufacturer: "",
+      parentCompany: "",
       mechanism: "",
       pricePerTreatmentUsd: "",
       sources: [""],
@@ -97,6 +99,7 @@ export default function TherapyFormDialog({
       form.reset({
         name: therapy.name,
         manufacturer: therapy.manufacturer,
+        parentCompany: therapy.parentCompany || "",
         mechanism: therapy.mechanism,
         pricePerTreatmentUsd: therapy.pricePerTreatmentUsd.toString(),
         sources: therapy.sources,
@@ -107,6 +110,7 @@ export default function TherapyFormDialog({
   const onSubmit = (values: TherapyFormValues) => {
     const data = {
       ...values,
+      parentCompany: values.parentCompany || undefined,
       pricePerTreatmentUsd: Number(values.pricePerTreatmentUsd),
     };
 
@@ -164,6 +168,22 @@ export default function TherapyFormDialog({
                   <FormControl>
                     <Input placeholder="e.g., Novartis" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="parentCompany"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Parent Company (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Johnson & Johnson" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Parent company if different from manufacturer
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

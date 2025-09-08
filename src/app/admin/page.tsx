@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/trpc/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Pill, Activity, CheckCircle, DollarSign, FileText, Clock, Loader2, XCircle, Play, Square, Trash2 } from "lucide-react";
+import { Pill, Activity, CheckCircle, DollarSign, Clock, Loader2, XCircle, Play, Square, Trash2 } from "lucide-react";
 import { toast } from "react-toastify";
 import Link from "next/link";
 
@@ -27,7 +27,7 @@ export default function AdminDashboard() {
       } else {
         toast.error("Failed to start worker");
       }
-    } catch (error) {
+    } catch {
       toast.error("Error starting worker");
     } finally {
       setIsWorkerLoading(false);
@@ -48,7 +48,7 @@ export default function AdminDashboard() {
       } else {
         toast.error("Failed to stop worker");
       }
-    } catch (error) {
+    } catch {
       toast.error("Error stopping worker");
     } finally {
       setIsWorkerLoading(false);
@@ -71,7 +71,7 @@ export default function AdminDashboard() {
       } else {
         toast.error("Failed to cleanup jobs");
       }
-    } catch (error) {
+    } catch {
       toast.error("Error cleaning up jobs");
     } finally {
       setIsWorkerLoading(false);

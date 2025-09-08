@@ -16,12 +16,12 @@ export class LoggableAgent {
    * Log the start of an analysis operation
    */
   protected async logAnalysisStart(
-    input: string | any,
+    input: string | Record<string, unknown>,
     documentInfo?: DocumentInfo
   ): Promise<void> {
     await this.logger.logInput(this.agentName, {
       text: typeof input === 'string' ? input : JSON.stringify(input),
-      context: documentInfo,
+      context: documentInfo as Record<string, unknown> | undefined,
       parameters: { agentName: this.agentName },
     });
   }
@@ -30,8 +30,8 @@ export class LoggableAgent {
    * Log the end of an analysis operation
    */
   protected async logAnalysisEnd(
-    result: any,
-    confidence?: any
+    result: Record<string, unknown>,
+    confidence?: number | Record<string, number>
   ): Promise<void> {
     await this.logger.logOutput(this.agentName, {
       parsedResult: result,
@@ -63,7 +63,7 @@ export class LoggableAgent {
   protected async logTiming(
     operation: string,
     startTime: number,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ): Promise<void> {
     const duration = Date.now() - startTime;
     await this.logger.logTiming(this.agentName, operation, duration, metadata);
@@ -72,7 +72,7 @@ export class LoggableAgent {
   /**
    * Log errors
    */
-  protected async logError(error: Error | string, context?: any): Promise<void> {
+  protected async logError(error: Error | string, context?: Record<string, unknown>): Promise<void> {
     await this.logger.logError(this.agentName, error, context);
   }
 
@@ -81,9 +81,9 @@ export class LoggableAgent {
    */
   protected async logValidation(
     success: boolean,
-    originalData: any,
-    validatedData?: any,
-    errors?: any[]
+    originalData: Record<string, unknown>,
+    validatedData?: Record<string, unknown>,
+    errors?: Error[]
   ): Promise<void> {
     await this.logger.logValidation(this.agentName, {
       success,
@@ -97,12 +97,12 @@ export class LoggableAgent {
 /**
  * Decorator function to add logging to existing agent methods
  */
-export function withMethodLogging<T extends (...args: any[]) => Promise<any>>(
+export function withMethodLogging<T extends (...args: unknown[]) => Promise<unknown>>(
   originalMethod: T,
   agentName: string,
   methodName: string = 'analyze'
 ): T {
-  return (async function(this: any, ...args: any[]) {
+  return (async function(this: unknown, ...args: unknown[]) {
     const logger = AgentLogger.getInstance();
     
     if (!logger.isLoggingEnabled()) {
@@ -119,7 +119,7 @@ export function withMethodLogging<T extends (...args: any[]) => Promise<any>>(
       
       await logger.logInput(agentName, {
         text: typeof inputData === 'string' ? inputData : JSON.stringify(inputData),
-        context: documentInfo,
+        context: documentInfo as Record<string, unknown> | undefined,
         parameters: { methodName, argsLength: args.length },
       });
 
@@ -128,8 +128,10 @@ export function withMethodLogging<T extends (...args: any[]) => Promise<any>>(
 
       // Log successful output
       await logger.logOutput(agentName, {
-        parsedResult: result,
-        confidence: result?.confidence,
+        parsedResult: result as Record<string, unknown> | undefined,
+        confidence: typeof (result as Record<string, unknown>)?.confidence === 'number' 
+          ? (result as Record<string, unknown>).confidence as number
+          : undefined,
       });
 
       // Log timing
@@ -164,11 +166,13 @@ export function withMethodLogging<T extends (...args: any[]) => Promise<any>>(
 /**
  * High-level wrapper for agent analyze methods
  */
-export function withAnalysisLogging<T extends { analyze: (...args: any[]) => Promise<any> }>(
-  agentClass: new (...args: any[]) => T,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function withAnalysisLogging<T extends new (...args: any[]) => { analyze: (...args: unknown[]) => Promise<unknown> }>(
+  agentClass: T,
   agentName: string
-) {
+): T {
   return class extends agentClass {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     constructor(...args: any[]) {
       super(...args);
       
@@ -176,7 +180,7 @@ export function withAnalysisLogging<T extends { analyze: (...args: any[]) => Pro
       const originalAnalyze = this.analyze.bind(this);
       this.analyze = withMethodLogging(originalAnalyze, agentName, 'analyze');
     }
-  };
+  } as T;
 }
 
 /**
@@ -193,7 +197,7 @@ export class AgentLoggerHelper {
   async timeAndLog<T>(
     operation: string,
     fn: () => Promise<T>,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ): Promise<T> {
     if (!this.logger.isLoggingEnabled()) {
       return await fn();
@@ -233,8 +237,7 @@ export class AgentLoggerHelper {
    */
   async logSuccessfulParsing(
     rawContent: string,
-    parsedResult: any,
-    schema?: string
+    parsedResult: Record<string, unknown>
   ): Promise<void> {
     await this.logger.logValidation(this.agentName, {
       success: true,
@@ -248,8 +251,8 @@ export class AgentLoggerHelper {
    */
   async logFailedParsing(
     rawContent: string,
-    error: any,
-    fallbackResult?: any
+    error: Error,
+    fallbackResult?: Record<string, unknown>
   ): Promise<void> {
     await this.logger.logValidation(this.agentName, {
       success: false,

@@ -15,6 +15,13 @@
       "when": 1754255409332,
       "tag": "0001_add-document-processing-tables",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1756756841323,
+      "tag": "0002_add-indication-column",
+      "breakpoints": true
     }
   ]
 }

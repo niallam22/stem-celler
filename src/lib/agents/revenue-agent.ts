@@ -38,9 +38,9 @@ const RevenueAnalysisResultSchema = z.object({
 });
 
 export interface RevenueAnalysisResult {
-  revenue: any[];
+  revenue: Record<string, unknown>[];
   confidence: number;
-  sources: any[];
+  sources: Record<string, unknown>[];
 }
 
 export class RevenueAgent {
@@ -212,7 +212,7 @@ FOCUS AREAS:
         // Log successful validation
         await this.logger.logValidation("RevenueAgent", {
           success: true,
-          originalData: response.content,
+          originalData: { content: response.content as string },
           validatedData: result,
         });
       } catch (parseError) {
@@ -220,7 +220,7 @@ FOCUS AREAS:
         await this.logger.logValidation("RevenueAgent", {
           success: false,
           errors: [parseError instanceof Error ? parseError.message : String(parseError)],
-          originalData: response.content,
+          originalData: { content: response.content as string },
         });
         throw parseError;
       }
@@ -306,7 +306,7 @@ FOCUS AREAS:
       // Preprocess calculations array to convert string numbers to actual numbers
       // Claude Sonnet 4 tends to return string values for numeric fields
       if (parsed.calculations && Array.isArray(parsed.calculations)) {
-        parsed.calculations = parsed.calculations.map((calc: any) => {
+        parsed.calculations = parsed.calculations.map((calc: Record<string, unknown>) => {
           const processedCalc = { ...calc };
           
           // Convert result from string to number if needed
@@ -348,7 +348,7 @@ FOCUS AREAS:
       
       // Handle revenue amounts if they're strings
       if (parsed.revenue && Array.isArray(parsed.revenue)) {
-        parsed.revenue = parsed.revenue.map((rev: any) => {
+        parsed.revenue = parsed.revenue.map((rev: Record<string, unknown>) => {
           const processedRev = { ...rev };
           
           if (typeof rev.revenueMillionsUsd === 'string') {
@@ -367,7 +367,7 @@ FOCUS AREAS:
       
       // Handle sourceReferences page numbers if they're strings
       if (parsed.sourceReferences && Array.isArray(parsed.sourceReferences)) {
-        parsed.sourceReferences = parsed.sourceReferences.map((ref: any) => {
+        parsed.sourceReferences = parsed.sourceReferences.map((ref: Record<string, unknown>) => {
           const processedRef = { ...ref };
           
           if (typeof ref.page === 'string') {
@@ -398,16 +398,16 @@ FOCUS AREAS:
     // Validate and standardize revenue data
     const processedRevenue = result.revenue.map((revenue) => {
       // Standardize period format
-      let standardizedPeriod = this.standardizePeriod(
+      const standardizedPeriod = this.standardizePeriod(
         revenue.period,
         documentInfo.reportingPeriod
       );
 
       // Standardize region names
-      let standardizedRegion = this.standardizeRegion(revenue.region);
+      const standardizedRegion = this.standardizeRegion(revenue.region);
 
       // Validate revenue amount
-      let validatedRevenue = this.validateRevenue(revenue.revenueMillionsUsd);
+      const validatedRevenue = this.validateRevenue(revenue.revenueMillionsUsd);
 
       // Enhance sources with company and report type context
       const enhancedSources = revenue.sources.map(source => {

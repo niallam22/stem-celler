@@ -76,7 +76,7 @@ export default function DeleteTherapyDialog({
                     {deleteMutation.error.message}
                   </div>
                   <div className="mt-2 text-muted-foreground">
-                    To delete this therapy and all related records, click "Delete All" below.
+                    To delete this therapy and all related records, click &quot;Delete All&quot; below.
                   </div>
                 </div>
               )}

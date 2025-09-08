@@ -20,13 +20,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Upload } from "lucide-react";
 import { toast } from "react-toastify";
 import DiseaseFormDialog from "./DiseaseFormDialog";
 import DeleteDiseaseDialog from "./DeleteDiseaseDialog";
+import BulkAddDialog, { BulkAddColumn } from "@/components/admin/BulkAddDialog";
+import CopyTemplate from "@/components/admin/CopyTemplate";
+import { formatDate } from "@/lib/utils/date";
 
 type SortBy = "name" | "category" | "subcategory" | "icd10Code" | "annualIncidenceUs" | "lastUpdated";
 type SortOrder = "asc" | "desc";
+
+type DiseaseInput = {
+  name: string;
+  indication?: string;
+  category: string;
+  subcategory?: string;
+  icd10Code?: string;
+  annualIncidenceUs?: number;
+  sources: string[];
+};
 
 export default function DiseasesPage() {
   const [page, setPage] = useState(1);
@@ -37,6 +50,7 @@ export default function DiseasesPage() {
   const [sortBy, setSortBy] = useState<SortBy>("name");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
   const [editingDisease, setEditingDisease] = useState<string | null>(null);
   const [deletingDisease, setDeletingDisease] = useState<{
     id: string;
@@ -54,6 +68,7 @@ export default function DiseasesPage() {
   });
 
   const { data: filterOptions } = api.admin.disease.getFilterOptions.useQuery();
+  const bulkCreateMutation = api.admin.disease.bulkCreate.useMutation();
 
   const handleSort = (column: SortBy) => {
     if (sortBy === column) {
@@ -85,6 +100,51 @@ export default function DiseasesPage() {
     setPage(1);
   };
 
+  // Bulk add configuration
+  const bulkAddColumns: BulkAddColumn[] = [
+    { key: "name", label: "Name", required: true, type: "string" },
+    { key: "indication", label: "Indication", required: false, type: "string" },
+    { key: "category", label: "Category", required: true, type: "string" },
+    { key: "subcategory", label: "Subcategory", required: false, type: "string" },
+    { key: "icd10Code", label: "ICD-10 Code", required: false, type: "string" },
+    { key: "annualIncidenceUs", label: "Annual Incidence (US)", required: false, type: "number" },
+    { key: "sources", label: "Sources", required: true, type: "array" },
+  ];
+
+  const bulkAddExampleData = [
+    {
+      name: "Acute Lymphoblastic Leukemia",
+      indication: "ALL",
+      category: "Hematologic Malignancy",
+      subcategory: "Acute Leukemia",
+      icd10Code: "C91.0",
+      annualIncidenceUs: 6000,
+      sources: ["https://www.cancer.gov/<exact-route-to-source-data>", "https://www.cdc.gov/<exact-route-to-source-data>"]
+    },
+    {
+      name: "Diffuse Large B-Cell Lymphoma",
+      indication: "DLBCL",
+      category: "Hematologic Malignancy",
+      subcategory: "B-Cell Lymphoma",
+      icd10Code: "C83.3",
+      annualIncidenceUs: 27000,
+      sources: ["https://seer.cancer.gov/<exact-route-to-source-data>", "https://www.cancer.org/<exact-route-to-source-data>"]
+    }
+  ];
+
+  const handleBulkAdd = async (data: Record<string, unknown>[]) => {
+    try {
+      const diseases = data as DiseaseInput[];
+      await bulkCreateMutation.mutateAsync({ diseases });
+      toast.success(`Successfully added ${diseases.length} diseases`);
+      refetch();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to add diseases";
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -94,10 +154,21 @@ export default function DiseasesPage() {
             Manage disease records and categories
           </p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add New Disease
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add New Disease
+          </Button>
+          <Button variant="outline" onClick={() => setIsBulkAddOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Add
+          </Button>
+          <CopyTemplate 
+            columns={bulkAddColumns}
+            exampleData={bulkAddExampleData}
+            name="Disease"
+          />
+        </div>
       </div>
 
       <Card>
@@ -186,6 +257,7 @@ export default function DiseasesPage() {
                       {getSortIcon("name")}
                     </Button>
                   </TableHead>
+                  <TableHead>Indication</TableHead>
                   <TableHead>
                     <Button
                       variant="ghost"
@@ -242,13 +314,13 @@ export default function DiseasesPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                    <TableCell colSpan={9} className="text-center">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : data?.diseases.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                    <TableCell colSpan={9} className="text-center">
                       No diseases found
                     </TableCell>
                   </TableRow>
@@ -258,6 +330,7 @@ export default function DiseasesPage() {
                       <TableCell className="font-medium">
                         {disease.name}
                       </TableCell>
+                      <TableCell>{disease.indication || "-"}</TableCell>
                       <TableCell>{disease.category}</TableCell>
                       <TableCell>{disease.subcategory || "-"}</TableCell>
                       <TableCell>{disease.icd10Code || "-"}</TableCell>
@@ -265,7 +338,7 @@ export default function DiseasesPage() {
                         {formatIncidence(disease.annualIncidenceUs)}
                       </TableCell>
                       <TableCell>
-                        {new Date(disease.lastUpdated).toLocaleDateString()}
+                        {formatDate(disease.lastUpdated)}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -350,6 +423,17 @@ export default function DiseasesPage() {
           refetch();
           setDeletingDisease(null);
         }}
+      />
+
+      <BulkAddDialog
+        open={isBulkAddOpen}
+        onOpenChange={setIsBulkAddOpen}
+        title="Bulk Add Diseases"
+        description="Add multiple diseases at once by providing JSON data. Each disease should include an ID, name, category, and sources."
+        columns={bulkAddColumns}
+        exampleData={bulkAddExampleData}
+        onSubmit={handleBulkAdd}
+        isLoading={bulkCreateMutation.isPending}
       />
     </div>
   );

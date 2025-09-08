@@ -2,7 +2,7 @@ import { z } from "zod";
 import { adminProcedure, createTRPCRouter } from "@/lib/api/trpc";
 import { db } from "@/lib/db";
 import { jobQueue, document } from "@/lib/db/schema";
-import { eq, desc, sql, and, or } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 export const queueAdminRouter = createTRPCRouter({
@@ -255,7 +255,7 @@ export const queueAdminRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         status: input.status,
       };
 

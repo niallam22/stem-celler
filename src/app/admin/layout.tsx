@@ -13,6 +13,9 @@ import {
   LogOut,
   CheckCircle,
   FileText,
+  Building2,
+  MapPin,
+  Home,
 } from "lucide-react";
 
 import {
@@ -51,6 +54,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link href="/">
+                        <Home className="h-4 w-4" />
+                        <span>Back to Homepage</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === "/admin"}>
                       <Link href="/admin">
@@ -104,6 +115,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       <Link href="/admin/diseases">
                         <Activity className="h-4 w-4" />
                         <span>Diseases</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/admin/regulatory-bodies"}>
+                      <Link href="/admin/regulatory-bodies">
+                        <Building2 className="h-4 w-4" />
+                        <span>Regulatory Bodies</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/admin/treatment-centers"}>
+                      <Link href="/admin/treatment-centers">
+                        <MapPin className="h-4 w-4" />
+                        <span>Treatment Centers</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

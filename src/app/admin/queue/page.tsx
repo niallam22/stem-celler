@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { 
   FileText, 
   Clock, 
@@ -43,16 +42,16 @@ type SortBy = "priority" | "createdAt" | "startedAt";
 type SortOrder = "asc" | "desc";
 
 const statusConfig = {
-  pending: { label: "Pending", icon: Clock, color: "warning" },
-  processing: { label: "Processing", icon: Loader2, color: "default" },
-  completed: { label: "Completed", icon: CheckCircle2, color: "success" },
-  failed: { label: "Failed", icon: XCircle, color: "destructive" },
+  pending: { label: "Pending", icon: Clock, color: "secondary" as const },
+  processing: { label: "Processing", icon: Loader2, color: "default" as const },
+  completed: { label: "Completed", icon: CheckCircle2, color: "secondary" as const },
+  failed: { label: "Failed", icon: XCircle, color: "destructive" as const },
 } as const;
 
 const priorityConfig = {
-  1: { label: "High", color: "destructive" },
-  2: { label: "Medium", color: "warning" },
-  3: { label: "Low", color: "secondary" },
+  1: { label: "High", color: "destructive" as const },
+  2: { label: "Medium", color: "default" as const },
+  3: { label: "Low", color: "secondary" as const },
 } as const;
 
 export default function JobQueuePage() {
@@ -136,7 +135,7 @@ export default function JobQueuePage() {
     const config = statusConfig[status];
     const Icon = config.icon;
     return (
-      <Badge variant={config.color as any} className="gap-1">
+      <Badge variant={config.color} className="gap-1">
         <Icon className="h-3 w-3" />
         {config.label}
       </Badge>
@@ -146,7 +145,7 @@ export default function JobQueuePage() {
   const getPriorityBadge = (priority: number) => {
     const config = priorityConfig[priority as keyof typeof priorityConfig];
     return (
-      <Badge variant={config.color as any}>
+      <Badge variant={config.color}>
         {config.label}
       </Badge>
     );
@@ -161,7 +160,10 @@ export default function JobQueuePage() {
     return `${minutes}m ${seconds}s`;
   };
 
-  const isJobStuck = (job: any) => {
+  const isJobStuck = (job: {
+    status: string;
+    startedAt: Date | null;
+  }) => {
     if (job.status !== "processing" || !job.startedAt) return false;
     const stuckTimeoutMinutes = parseInt(process.env.NEXT_PUBLIC_QUEUE_STUCK_JOB_TIMEOUT_MINUTES || '60');
     const processingMinutes = (new Date().getTime() - new Date(job.startedAt).getTime()) / 60000;
@@ -255,7 +257,7 @@ export default function JobQueuePage() {
             <div className="flex items-center gap-4">
               <Select
                 value={statusFilter}
-                onValueChange={(value) => setStatusFilter(value as any)}
+                onValueChange={(value) => setStatusFilter(value as "pending" | "processing" | "completed" | "failed" | "all")}
               >
                 <SelectTrigger className="w-[150px]">
                   <SelectValue />

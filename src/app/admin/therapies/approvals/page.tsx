@@ -20,13 +20,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Filter } from "lucide-react";
+import { Plus, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Filter, Upload } from "lucide-react";
 import { toast } from "react-toastify";
 import ApprovalFormDialog from "./ApprovalFormDialog";
 import DeleteApprovalDialog from "./DeleteApprovalDialog";
+import BulkAddDialog, { BulkAddColumn } from "@/components/admin/BulkAddDialog";
+import CopyTemplate from "@/components/admin/CopyTemplate";
+import { parseDDMMYYYY, formatDate } from "@/lib/utils/date";
 
 type SortBy = "therapyName" | "diseaseName" | "region" | "approvalDate" | "regulatoryBody";
 type SortOrder = "asc" | "desc";
+
+type ApprovalInput = {
+  therapyName: string;
+  diseaseIndication: string;
+  region: string;
+  approvalDate: Date;
+  approvalType: string;
+  regulatoryBody: string;
+  sources: string[];
+};
 
 export default function ApprovalsPage() {
   const [page, setPage] = useState(1);
@@ -38,6 +51,7 @@ export default function ApprovalsPage() {
   const [sortBy, setSortBy] = useState<SortBy>("approvalDate");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
   const [editingApproval, setEditingApproval] = useState<string | null>(null);
   const [deletingApproval, setDeletingApproval] = useState<{
     id: string;
@@ -58,6 +72,7 @@ export default function ApprovalsPage() {
 
   const { data: therapyOptions } = api.admin.approval.getOptions.useQuery();
   const { data: filterOptions } = api.admin.approval.getFilterOptions.useQuery();
+  const bulkCreateMutation = api.admin.approval.bulkCreate.useMutation();
 
   const handleSort = (column: SortBy) => {
     if (sortBy === column) {
@@ -85,6 +100,61 @@ export default function ApprovalsPage() {
     setPage(1);
   };
 
+  // Bulk add configuration
+  const bulkAddColumns: BulkAddColumn[] = [
+    { key: "therapyName", label: "Therapy Name", required: true, type: "string" },
+    { key: "diseaseIndication", label: "Disease Indication", required: true, type: "string" },
+    { key: "region", label: "Region", required: true, type: "string" },
+    { key: "approvalDate", label: "Approval Date (DD/MM/YYYY)", required: true, type: "string" },
+    { key: "approvalType", label: "Approval Type", required: true, type: "string" },
+    { key: "regulatoryBody", label: "Regulatory Body", required: true, type: "string" },
+    { key: "sources", label: "Sources", required: true, type: "array" },
+  ];
+
+  const bulkAddExampleData = [
+    {
+      therapyName: "Kymriah",
+      diseaseIndication: "ALL",
+      region: "United States",
+      approvalDate: "30/08/2017",
+      approvalType: "Full Approval",
+      regulatoryBody: "FDA",
+      sources: ["https://www.fda.gov/<exact-route-to-source-data>", "https://www.novartis.com/<exact-route-to-source-data>"]
+    },
+    {
+      therapyName: "Yescarta",
+      diseaseIndication: "DLBCL",
+      region: "European Union",
+      approvalDate: "23/08/2018",
+      approvalType: "Conditional Approval",
+      regulatoryBody: "EMA",
+      sources: ["https://www.ema.europa.eu/<exact-route-to-source-data>", "https://www.gilead.com/<exact-route-to-source-data>"]
+    }
+  ];
+
+  const handleBulkAdd = async (data: Record<string, unknown>[]) => {
+    try {
+      // Transform date strings to Date objects (DD/MM/YYYY format)
+      const processedData: ApprovalInput[] = data.map(item => ({
+        therapyName: item.therapyName as string,
+        diseaseIndication: item.diseaseIndication as string,
+        region: item.region as string,
+        approvalDate: parseDDMMYYYY(item.approvalDate as string),
+        approvalType: item.approvalType as string,
+        regulatoryBody: item.regulatoryBody as string,
+        sources: item.sources as string[],
+      }));
+      
+      await bulkCreateMutation.mutateAsync({ approvals: processedData });
+      toast.success(`Successfully added ${data.length} approvals`);
+      refetch();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to add approvals";
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -94,10 +164,21 @@ export default function ApprovalsPage() {
             Manage regulatory approvals for therapies
           </p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add New Approval
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add New Approval
+          </Button>
+          <Button variant="outline" onClick={() => setIsBulkAddOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Add
+          </Button>
+          <CopyTemplate 
+            columns={bulkAddColumns}
+            exampleData={bulkAddExampleData}
+            name="Approval"
+          />
+        </div>
       </div>
 
       <Card>
@@ -142,7 +223,7 @@ export default function ApprovalsPage() {
               <SelectContent>
                 <SelectItem value="__all__">All therapies</SelectItem>
                 {therapyOptions?.therapies.map((therapy) => (
-                  <SelectItem key={therapy.id} value={therapy.id}>
+                  <SelectItem key={therapy.name} value={therapy.name}>
                     {therapy.name}
                   </SelectItem>
                 ))}
@@ -266,7 +347,7 @@ export default function ApprovalsPage() {
                       <TableCell>{approval.diseaseName}</TableCell>
                       <TableCell>{approval.region}</TableCell>
                       <TableCell>
-                        {new Date(approval.approvalDate).toLocaleDateString()}
+                        {formatDate(approval.approvalDate)}
                       </TableCell>
                       <TableCell>{approval.regulatoryBody}</TableCell>
                       <TableCell>{approval.approvalType}</TableCell>
@@ -362,6 +443,17 @@ export default function ApprovalsPage() {
           refetch();
           setDeletingApproval(null);
         }}
+      />
+
+      <BulkAddDialog
+        open={isBulkAddOpen}
+        onOpenChange={setIsBulkAddOpen}
+        title="Bulk Add Therapy Approvals"
+        description="Add multiple therapy approvals at once by providing JSON data. Each approval should include therapy ID, disease ID, region, approval date, type, regulatory body, and sources."
+        columns={bulkAddColumns}
+        exampleData={bulkAddExampleData}
+        onSubmit={handleBulkAdd}
+        isLoading={bulkCreateMutation.isPending}
       />
     </div>
   );

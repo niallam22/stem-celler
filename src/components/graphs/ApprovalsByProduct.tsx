@@ -1,5 +1,6 @@
 import CustomTooltip from "@/components/charts/CustomTooltip";
 import VerticalStackedBarChart from "@/components/charts/VerticalStackedBarChart";
+import DiseaseNamesDialog from "@/components/ui/DiseaseNamesDialog";
 
 // Prop interfaces
 export interface StackConfig {
@@ -29,6 +30,7 @@ interface ApprovalsByProductProps {
   filters: FilterConfig[];
   title: string;
   description: string;
+  diseases?: Array<{ id: string; name: string; indication: string | null }>;
 }
 
 export default function ApprovalsByProduct({
@@ -37,7 +39,13 @@ export default function ApprovalsByProduct({
   filters,
   title,
   description,
+  diseases = [],
 }: ApprovalsByProductProps) {
+  // Disease Names Dialog
+  const diseaseNamesDialog = diseases.length > 0 ? (
+    <DiseaseNamesDialog diseases={diseases} />
+  ) : null;
+
   return (
     <div className="w-full space-y-6">
       <VerticalStackedBarChart
@@ -50,6 +58,8 @@ export default function ApprovalsByProduct({
         customTooltip={CustomTooltip}
         yAxisLabel="Number of Approvals"
         height={400}
+        showSummaryStats={false}
+        filterAdditionalContent={diseaseNamesDialog}
       />
     </div>
   );

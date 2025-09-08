@@ -23,14 +23,12 @@ export class DocumentProcessor {
 
       console.log(`✅ Document Processor: Extraction completed for ${document.fileName}`);
       if (result) {
-        console.log(`📊 Results: ${result.therapy?.length || 0} therapies, ${result.revenue?.length || 0} revenue records, ${result.approvals?.length || 0} approvals`);
+        console.log(`📊 Results: ${result.revenue?.length || 0} revenue records, confidence: ${result.confidence}%`);
       }
 
       return result || {
-        therapy: [],
         revenue: [],
-        approvals: [],
-        confidence: { therapy: 0, revenue: 0, approvals: 0 },
+        confidence: 0,
         sources: []
       };
     } catch (error) {

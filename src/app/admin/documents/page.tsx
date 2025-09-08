@@ -27,9 +27,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Upload, MoreHorizontal, FileText, Eye, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Search, Upload, MoreHorizontal, FileText, Eye, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown, Link as LinkIcon, Download, Edit, Trash2 } from "lucide-react";
 import { toast } from "react-toastify";
 import DocumentUploadDialog from "./DocumentUploadDialog";
+import DocumentFormDialog from "./DocumentFormDialog";
+import DeleteDocumentDialog from "./DeleteDocumentDialog";
+import BulkImportDialog from "./BulkImportDialog";
+import { formatDate } from "@/lib/utils/date";
 import Link from "next/link";
 
 type SortBy = "fileName" | "companyName" | "reportType" | "reportingPeriod" | "uploadedAt";
@@ -43,11 +47,7 @@ const statusColors = {
   failed: "destructive",
 } as const;
 
-const priorityLabels = {
-  high: { label: "High", color: "destructive" },
-  medium: { label: "Medium", color: "warning" },
-  low: { label: "Low", color: "secondary" },
-} as const;
+// Priority labels removed - not currently used
 
 export default function DocumentsPage() {
   const [page, setPage] = useState(1);
@@ -58,6 +58,9 @@ export default function DocumentsPage() {
   const [sortBy, setSortBy] = useState<SortBy>("uploadedAt");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [editDocumentId, setEditDocumentId] = useState<string | null>(null);
+  const [deleteDocument, setDeleteDocument] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading, refetch } = api.admin.document.list.useQuery({
     page,
@@ -91,6 +94,17 @@ export default function DocumentsPage() {
     },
   });
 
+  const utils = api.useUtils();
+  
+  const downloadDocument = async (documentId: string) => {
+    try {
+      const result = await utils.admin.document.getDownloadUrl.fetch({ id: documentId });
+      window.open(result.url, "_blank");
+    } catch (error) {
+      toast.error("Failed to generate download URL");
+    }
+  };
+
   const handleSort = (column: SortBy) => {
     if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -117,9 +131,17 @@ export default function DocumentsPage() {
   };
 
   const getStatusBadge = (status: string) => {
-    const variant = statusColors[status as keyof typeof statusColors] || "secondary";
+    const variantMap: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      secondary: "secondary",
+      warning: "outline",
+      default: "default",
+      success: "default",
+      destructive: "destructive",
+    };
+    const colorVariant = statusColors[status as keyof typeof statusColors] || "secondary";
+    const variant = variantMap[colorVariant] || "secondary";
     const label = status.replace("_", " ").charAt(0).toUpperCase() + status.slice(1).replace("_", " ");
-    return <Badge variant={variant as any}>{label}</Badge>;
+    return <Badge variant={variant}>{label}</Badge>;
   };
 
   return (
@@ -131,10 +153,16 @@ export default function DocumentsPage() {
             Upload and manage documents for data extraction
           </p>
         </div>
-        <Button onClick={() => setIsUploadOpen(true)}>
-          <Upload className="mr-2 h-4 w-4" />
-          Upload Document
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsUploadOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Upload Document
+          </Button>
+          <Button variant="outline" onClick={() => setIsBulkImportOpen(true)}>
+            <LinkIcon className="mr-2 h-4 w-4" />
+            Bulk Import URLs
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -296,7 +324,7 @@ export default function DocumentsPage() {
                       </TableCell>
                       <TableCell>{doc.reportingPeriod || "-"}</TableCell>
                       <TableCell>
-                        {new Date(doc.uploadedAt).toLocaleDateString()}
+                        {formatDate(doc.uploadedAt)}
                       </TableCell>
                       <TableCell>{getStatusBadge(doc.status)}</TableCell>
                       <TableCell>
@@ -307,6 +335,19 @@ export default function DocumentsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => downloadDocument(doc.id)}
+                            >
+                              <Download className="mr-2 h-4 w-4" />
+                              Download
+                            </DropdownMenuItem>
+                            
+                            <DropdownMenuItem
+                              onClick={() => setEditDocumentId(doc.id)}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
                             {doc.status === "not_queued" && (
                               <DropdownMenuItem
                                 onClick={() => queueExtraction.mutate({
@@ -371,6 +412,14 @@ export default function DocumentsPage() {
                                 </Link>
                               </DropdownMenuItem>
                             )}
+                            
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => setDeleteDocument({ id: doc.id, name: doc.fileName })}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -413,6 +462,39 @@ export default function DocumentsPage() {
         onSuccess={() => {
           refetch();
           setIsUploadOpen(false);
+        }}
+      />
+
+      <BulkImportDialog
+        open={isBulkImportOpen}
+        onOpenChange={setIsBulkImportOpen}
+        onSuccess={() => {
+          refetch();
+        }}
+      />
+
+      <DocumentFormDialog
+        open={!!editDocumentId}
+        onOpenChange={(open) => {
+          if (!open) setEditDocumentId(null);
+        }}
+        documentId={editDocumentId}
+        onSuccess={() => {
+          refetch();
+          setEditDocumentId(null);
+        }}
+      />
+
+      <DeleteDocumentDialog
+        open={!!deleteDocument}
+        onOpenChange={(open) => {
+          if (!open) setDeleteDocument(null);
+        }}
+        documentId={deleteDocument?.id || null}
+        documentName={deleteDocument?.name || null}
+        onSuccess={() => {
+          refetch();
+          setDeleteDocument(null);
         }}
       />
     </div>

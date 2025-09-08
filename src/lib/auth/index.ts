@@ -1,5 +1,9 @@
 import { db } from "@/lib/db";
-import { user as userTable } from "@/lib/db/schema";
+import { 
+  user as userTable,
+  account,
+  verificationToken 
+} from "@/lib/db/schema";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
 import {
@@ -8,6 +12,13 @@ import {
   type NextAuthOptions,
 } from "next-auth";
 import EmailProvider from "next-auth/providers/email";
+import GoogleProvider from "next-auth/providers/google";
+import { validateAuthConfig } from "./validate-config";
+
+// Validate configuration on startup
+if (typeof window === "undefined" && process.env.SKIP_AUTH_VALIDATION !== "true") {
+  validateAuthConfig();
+}
 
 export enum UserRole {
   user = "user",
@@ -60,8 +71,16 @@ declare module "next-auth" {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: DrizzleAdapter(db),
+  adapter: DrizzleAdapter(db, {
+    usersTable: userTable,
+    accountsTable: account,
+    verificationTokensTable: verificationToken
+  }),
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
     EmailProvider({
       server: {
         host: "smtp.resend.com",

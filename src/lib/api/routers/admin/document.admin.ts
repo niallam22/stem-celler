@@ -5,6 +5,7 @@ import { document, jobQueue, extraction, therapy } from "@/lib/db/schema";
 import { eq, desc, sql, and, or, like } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createHash } from "crypto";
+import { createClient } from "@supabase/supabase-js";
 
 export const documentAdminRouter = createTRPCRouter({
   list: adminProcedure
@@ -240,6 +241,39 @@ export const documentAdminRouter = createTRPCRouter({
       return updated;
     }),
 
+  update: adminProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        companyName: z.string().nullable().optional(),
+        reportType: z.enum(["annual", "quarterly"]).nullable().optional(),
+        reportingPeriod: z.string().nullable().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { id, ...updateData } = input;
+      
+      // Remove undefined values
+      const cleanedData = Object.fromEntries(
+        Object.entries(updateData).filter(([_, v]) => v !== undefined)
+      );
+
+      const [updated] = await db
+        .update(document)
+        .set(cleanedData)
+        .where(eq(document.id, id))
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found",
+        });
+      }
+
+      return updated;
+    }),
+
   delete: adminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
@@ -301,4 +335,54 @@ export const documentAdminRouter = createTRPCRouter({
 
     return Array.from(allCompanies).sort();
   }),
+
+  getDownloadUrl: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input }) => {
+      const [doc] = await db
+        .select()
+        .from(document)
+        .where(eq(document.id, input.id))
+        .limit(1);
+
+      if (!doc) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found",
+        });
+      }
+
+      if (!doc.s3Url) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document file path not found",
+        });
+      }
+
+      // Create Supabase client
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      );
+
+      // Generate a signed URL for the document (valid for 1 hour)
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(doc.s3Url, 3600);
+
+      if (error || !data) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to generate download URL",
+        });
+      }
+
+      return { url: data.signedUrl };
+    }),
 });

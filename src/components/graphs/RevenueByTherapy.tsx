@@ -97,8 +97,8 @@ export default function RevenueByTherapy({
   description = "Interactive line chart showing revenue and patient volume trends over time.",
   height = 400,
 }: RevenueByTherapyProps) {
-  // Mobile responsiveness hook
-  const [isMobile, setIsMobile] = useState(false);
+  // Mobile responsiveness hook (currently unused but kept for future use)
+  const [, setIsMobile] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -112,7 +112,7 @@ export default function RevenueByTherapy({
 
   // Create time-resolution-aware format function
   const resolutionAwareFormatPeriod = useMemo(() => {
-    return (period: string) => formatPeriod(period, timeResolution === 'annual');
+    return (period: string | number) => formatPeriod(String(period), timeResolution === 'annual');
   }, [formatPeriod, timeResolution]);
 
   // Track which data point is being hovered with position
@@ -120,7 +120,7 @@ export default function RevenueByTherapy({
     period: string;
     therapyId: string;
     position: { x: number; y: number };
-    data: any;
+    data: Record<string, unknown>;
   } | null>(null);
 
   // Custom Positioned Tooltip Component (only shows on dot hover)
@@ -132,7 +132,7 @@ export default function RevenueByTherapy({
     const { therapyId, data, position } = hoveredDataPoint;
     const therapyName = getTherapyDisplayName(therapyId);
     const color = getTherapyColor(therapyId);
-    const value = data[`${therapyId}_${viewMode}`];
+    const value = data[`${therapyId}_${viewMode}`] as number | undefined;
 
     if (value === undefined || value === null) {
       return null;
@@ -189,9 +189,15 @@ export default function RevenueByTherapy({
     {
       key: "therapies",
       label: "Therapies",
-      options: availableTherapies,
-      selectedValues: selectedTherapies,
-      onToggle: onTherapyToggle,
+      options: availableTherapies.map(getTherapyDisplayName),
+      selectedValues: selectedTherapies.map(getTherapyDisplayName),
+      onToggle: (displayName: string) => {
+        // Find the therapyId from the display name
+        const therapyId = availableTherapies.find(id => getTherapyDisplayName(id) === displayName);
+        if (therapyId) {
+          onTherapyToggle(therapyId);
+        }
+      },
     },
   ];
 
@@ -199,7 +205,7 @@ export default function RevenueByTherapy({
   const chartDataForRecharts = useMemo(() => {
     if (timeResolution === 'annual') {
       // Aggregate quarterly data by year
-      const yearlyData = new Map<string, Record<string, any>>();
+      const yearlyData = new Map<string, Record<string, number | string>>();
       
       aggregatedData.forEach((periodData) => {
         const year = periodData.period.split('-')[0];
@@ -215,21 +221,28 @@ export default function RevenueByTherapy({
           const revenueKey = `${therapyId}_revenue`;
           const patientsKey = `${therapyId}_patients`;
           
-          yearData[revenueKey] = (yearData[revenueKey] || 0) + metrics.revenue;
-          yearData[patientsKey] = (yearData[patientsKey] || 0) + metrics.patients;
+          // Only add values if they exist (not 0 from no data)
+          if (metrics.revenue > 0) {
+            yearData[revenueKey] = (Number(yearData[revenueKey]) || 0) + metrics.revenue;
+          }
+          if (metrics.patients > 0) {
+            yearData[patientsKey] = (Number(yearData[patientsKey]) || 0) + metrics.patients;
+          }
         });
       });
       
-      return Array.from(yearlyData.values()).sort((a, b) => a.period.localeCompare(b.period));
+      return Array.from(yearlyData.values()).sort((a, b) => String(a.period).localeCompare(String(b.period)));
     } else {
       // Use quarterly data
       return aggregatedData.map((periodData) => {
-        const flattened: Record<string, any> = { period: periodData.period };
+        const flattened: Record<string, number | string | undefined> = { period: periodData.period };
 
         // Flatten therapy data into period-level keys for Recharts
         Object.entries(periodData.therapies).forEach(([therapyId, metrics]) => {
-          flattened[`${therapyId}_revenue`] = metrics.revenue;
-          flattened[`${therapyId}_patients`] = metrics.patients;
+          // Only add values if they exist (not 0 from no data)
+          // Use undefined for missing data points so the line doesn't render
+          flattened[`${therapyId}_revenue`] = metrics.revenue > 0 ? metrics.revenue : undefined;
+          flattened[`${therapyId}_patients`] = metrics.patients > 0 ? metrics.patients : undefined;
         });
 
         return flattened;
@@ -251,7 +264,7 @@ export default function RevenueByTherapy({
           const chartContainer = document.querySelector(".recharts-wrapper");
           const containerRect = chartContainer?.getBoundingClientRect();
           setHoveredDataPoint({
-            period: payload.period,
+            period: payload.period as string,
             therapyId: therapyId,
             position: {
               x: (containerRect?.left || 0) + (position?.x || 0),
@@ -287,7 +300,6 @@ export default function RevenueByTherapy({
     resolutionAwareFormatPeriod,
     viewMode,
     height,
-    getTherapyDisplayName,
   ]);
 
   // Summary cards configuration
@@ -311,10 +323,10 @@ export default function RevenueByTherapy({
             value: viewMode === "revenue" ? totalRevenue : totalPatients,
             subtitle:
               viewMode === "revenue" ? "Total Revenue" : "Total Patients",
-            formatter: (value: number) =>
+            formatter: (value: string | number) =>
               viewMode === "revenue"
-                ? `${value.toFixed(1)}M`
-                : value.toLocaleString(),
+                ? `${Number(value).toFixed(1)}M`
+                : Number(value).toLocaleString(),
           };
         })
       ),
@@ -322,12 +334,12 @@ export default function RevenueByTherapy({
   );
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="sm:mx-0 sm:rounded-lg rounded-none">
+      <CardHeader className="px-4 sm:px-6">
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 sm:px-6">
         {/* Controls */}
         <div className="space-y-4 mb-6">
           {/* View Mode Toggle */}

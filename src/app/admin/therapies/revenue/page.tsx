@@ -20,13 +20,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, DollarSign } from "lucide-react";
+import { Plus, Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, DollarSign, Upload } from "lucide-react";
 import { toast } from "react-toastify";
 import RevenueFormDialog from "./RevenueFormDialog";
 import DeleteRevenueDialog from "./DeleteRevenueDialog";
+import BulkAddDialog, { BulkAddColumn } from "@/components/admin/BulkAddDialog";
+import CopyTemplate from "@/components/admin/CopyTemplate";
+import { formatDate } from "@/lib/utils/date";
 
 type SortBy = "therapyName" | "period" | "region" | "revenueMillionsUsd" | "lastUpdated";
 type SortOrder = "asc" | "desc";
+
+type RevenueInput = {
+  therapyId: string;
+  period: string;
+  region: string;
+  revenueMillionsUsd: number;
+  sources: string[];
+};
 
 export default function RevenuePage() {
   const [page, setPage] = useState(1);
@@ -38,6 +49,7 @@ export default function RevenuePage() {
   const [sortBy, setSortBy] = useState<SortBy>("lastUpdated");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
   const [editingRevenue, setEditingRevenue] = useState<string | null>(null);
   const [deletingRevenue, setDeletingRevenue] = useState<{
     id: string;
@@ -59,6 +71,7 @@ export default function RevenuePage() {
 
   const { data: therapyOptions } = api.admin.revenue.getTherapyOptions.useQuery();
   const { data: filterOptions } = api.admin.revenue.getFilterOptions.useQuery();
+  const bulkCreateMutation = api.admin.revenue.bulkCreate.useMutation();
 
   const handleSort = (column: SortBy) => {
     if (sortBy === column) {
@@ -95,6 +108,45 @@ export default function RevenuePage() {
     setPage(1);
   };
 
+  // Bulk add configuration
+  const bulkAddColumns: BulkAddColumn[] = [
+    { key: "therapyId", label: "Therapy ID", required: true, type: "string" },
+    { key: "period", label: "Period", required: true, type: "string" },
+    { key: "region", label: "Region", required: true, type: "string" },
+    { key: "revenueMillionsUsd", label: "Revenue (Millions USD)", required: true, type: "number" },
+    { key: "sources", label: "Sources", required: true, type: "array" },
+  ];
+
+  const bulkAddExampleData = [
+    {
+      therapyId: "kymriah",
+      period: "Q4 2023",
+      region: "United States",
+      revenueMillionsUsd: 150,
+      sources: ["https://www.novartis.com/<exact-route-to-source-data>", "https://www.sec.gov/<exact-route-to-source-data>"]
+    },
+    {
+      therapyId: "yescarta",
+      period: "2023",
+      region: "European Union",
+      revenueMillionsUsd: 85,
+      sources: ["https://www.gilead.com/<exact-route-to-source-data>", "https://www.sec.gov/<exact-route-to-source-data>"]
+    }
+  ];
+
+  const handleBulkAdd = async (data: Record<string, unknown>[]) => {
+    try {
+      const revenues = data as RevenueInput[];
+      await bulkCreateMutation.mutateAsync({ revenues });
+      toast.success(`Successfully added ${revenues.length} revenue records`);
+      refetch();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to add revenue records";
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -104,10 +156,21 @@ export default function RevenuePage() {
             Manage revenue data for therapies
           </p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add New Revenue Record
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add New Revenue Record
+          </Button>
+          <Button variant="outline" onClick={() => setIsBulkAddOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Add
+          </Button>
+          <CopyTemplate 
+            columns={bulkAddColumns}
+            exampleData={bulkAddExampleData}
+            name="Revenue"
+          />
+        </div>
       </div>
 
 
@@ -279,7 +342,7 @@ export default function RevenuePage() {
                         {formatRevenue(revenue.revenueMillionsUsd)}
                       </TableCell>
                       <TableCell>
-                        {new Date(revenue.lastUpdated).toLocaleDateString()}
+                        {formatDate(revenue.lastUpdated)}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -368,6 +431,17 @@ export default function RevenuePage() {
           refetch();
           setDeletingRevenue(null);
         }}
+      />
+
+      <BulkAddDialog
+        open={isBulkAddOpen}
+        onOpenChange={setIsBulkAddOpen}
+        title="Bulk Add Therapy Revenue"
+        description="Add multiple revenue records at once by providing JSON data. Each revenue record should include therapy ID, period, region, revenue amount, and sources."
+        columns={bulkAddColumns}
+        exampleData={bulkAddExampleData}
+        onSubmit={handleBulkAdd}
+        isLoading={bulkCreateMutation.isPending}
       />
     </div>
   );

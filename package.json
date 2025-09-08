@@ -12,11 +12,11 @@
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit generate --name",
     "db:reset": "supabase db reset",
-    "db:seed": "tsx scripts/seed.ts",
     "db:studio": "npx drizzle-kit studio",
     "worker": "tsx src/scripts/start-worker.ts",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "build:test": "SKIP_AUTH_VALIDATION=true NEXTAUTH_URL=https://test.example.com NEXTAUTH_SECRET=test-secret-at-least-32-characters-long npm run build"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.9.1",
@@ -55,6 +55,8 @@
     "@trpc/react-query": "next",
     "@trpc/server": "next",
     "@types/react-datepicker": "^6.2.0",
+    "@upstash/ratelimit": "^2.0.6",
+    "@upstash/redis": "^1.35.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

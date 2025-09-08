@@ -3,164 +3,18 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import DiseaseNamesDialog from "@/components/ui/DiseaseNamesDialog";
 import { Input } from "@/components/ui/input";
+import type { Therapy, Disease, TherapyApproval, TreatmentCenter as DBTreatmentCenter } from "@/lib/db/schema";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Clock, Globe, MapPin, Phone, Search, X } from "lucide-react";
-import React, { useMemo, useRef, useState, useEffect } from "react";
+import { Globe, Loader2, MapPin, Phone, Search, X } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 
-// Import therapy data types and data
-interface Therapy {
-  id: string;
-  name: string;
-  manufacturer: string;
-  mechanism: string;
-  price_per_treatment_usd: number;
-  sources: string[];
-  last_updated: string;
-}
-
-interface Disease {
-  id: string;
-  name: string;
-  category: string;
-  subcategory?: string;
-  icd_10_code?: string;
-  annual_incidence_us?: number;
-  sources: string[];
-  last_updated: string;
-}
-
-interface TherapyApproval {
-  id: string;
-  therapy_id: string;
-  disease_id: string;
-  region: string;
-  approval_date: string;
-  approval_type: string;
-  regulatory_body: string;
-  sources: string[];
-  last_updated: string;
-}
-
-// Therapy data
-const therapies: Therapy[] = [
-  {
-    id: "YESCARTA",
-    name: "Yescarta",
-    manufacturer: "Gilead",
-    mechanism: "CAR-T",
-    price_per_treatment_usd: 373000,
-    sources: ["Gilead product information"],
-    last_updated: "2023-01-01",
-  },
-  {
-    id: "KYMRIAH",
-    name: "Kymriah",
-    manufacturer: "Novartis",
-    mechanism: "CAR-T",
-    price_per_treatment_usd: 475000,
-    sources: ["Novartis product information"],
-    last_updated: "2024-01-01",
-  },
-];
-
-// Disease data
-const diseases: Disease[] = [
-  {
-    id: "DLBCL",
-    name: "Diffuse Large B-Cell Lymphoma",
-    category: "Hematologic Malignancy",
-    subcategory: "B-Cell Lymphoma",
-    icd_10_code: "C83.3",
-    annual_incidence_us: 27000,
-    sources: ["American Cancer Society", "SEER database"],
-    last_updated: "2024-01-01",
-  },
-  {
-    id: "PMBCL",
-    name: "Primary Mediastinal B-Cell Lymphoma",
-    category: "Hematologic Malignancy",
-    subcategory: "B-Cell Lymphoma",
-    icd_10_code: "C85.2",
-    annual_incidence_us: 1500,
-    sources: ["National Cancer Institute", "SEER database"],
-    last_updated: "2024-01-01",
-  },
-  {
-    id: "PEDIATRIC_B_ALL",
-    name: "Pediatric B-cell Acute Lymphoblastic Leukemia",
-    category: "Hematologic Malignancy",
-    subcategory: "Acute Leukemia",
-    icd_10_code: "C91.0",
-    annual_incidence_us: 3000,
-    sources: ["Children's Oncology Group", "SEER database"],
-    last_updated: "2024-01-01",
-  },
-];
-
-// Therapy approvals data
-const therapyApprovals: TherapyApproval[] = [
-  {
-    id: "YES_DLBCL_US",
-    therapy_id: "YESCARTA",
-    disease_id: "DLBCL",
-    region: "US",
-    approval_date: "2017-10-18",
-    approval_type: "Full",
-    regulatory_body: "FDA",
-    sources: ["FDA approval letter"],
-    last_updated: "2023-01-01",
-  },
-  {
-    id: "YES_PMBCL_US",
-    therapy_id: "YESCARTA",
-    disease_id: "PMBCL",
-    region: "US",
-    approval_date: "2017-10-18",
-    approval_type: "Full",
-    regulatory_body: "FDA",
-    sources: ["FDA approval letter"],
-    last_updated: "2023-01-01",
-  },
-  {
-    id: "KYM_BALL_US",
-    therapy_id: "KYMRIAH",
-    disease_id: "PEDIATRIC_B_ALL",
-    region: "US",
-    approval_date: "2017-08-30",
-    approval_type: "Full",
-    regulatory_body: "FDA",
-    sources: ["FDA approval letter"],
-    last_updated: "2024-01-01",
-  },
-  {
-    id: "KYM_DLBCL_US",
-    therapy_id: "KYMRIAH",
-    disease_id: "DLBCL",
-    region: "US",
-    approval_date: "2018-05-01",
-    approval_type: "Full",
-    regulatory_body: "FDA",
-    sources: ["FDA approval letter"],
-    last_updated: "2024-01-01",
-  },
-];
-
-// Updated Treatment Center interface
-interface TreatmentCenter {
-  id: number;
-  name: string;
-  lat: number;
-  lng: number;
-  address?: string;
-  phone?: string;
-  website?: string;
-  hours?: string;
-  therapies: string[]; // Array of therapy IDs
-  description?: string;
-}
+// Types for database entities
+// Using TreatmentCenter from schema (aliased as DBTreatmentCenter)
+type TreatmentCenter = DBTreatmentCenter;
 
 // Filter interfaces
 interface FilterConfig {
@@ -180,20 +34,25 @@ function FilterBadges({ filters, className = "" }: FilterBadgesProps) {
   return (
     <div className={`space-y-4 ${className}`}>
       {filters.map((filter) => (
-        <div key={filter.key} className="flex items-center space-x-2">
+        <div
+          key={filter.key}
+          className="flex flex-col sm:flex-row sm:items-center gap-2"
+        >
           <span className="text-sm font-medium">{filter.label}:</span>
-          {filter.options.map((option) => (
-            <Badge
-              key={option}
-              variant={
-                filter.selectedValues.includes(option) ? "default" : "outline"
-              }
-              className="cursor-pointer"
-              onClick={() => filter.onToggle(option)}
-            >
-              {option}
-            </Badge>
-          ))}
+          <div className="flex flex-wrap gap-2">
+            {filter.options.map((option) => (
+              <Badge
+                key={option}
+                variant={
+                  filter.selectedValues.includes(option) ? "default" : "outline"
+                }
+                className="cursor-pointer"
+                onClick={() => filter.onToggle(option)}
+              >
+                {option}
+              </Badge>
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -214,59 +73,6 @@ const DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Updated treatment center data with therapies
-const treatmentCenters: TreatmentCenter[] = [
-  {
-    id: 1,
-    name: "Memorial Sloan Kettering Cancer Center",
-    lat: 40.7589,
-    lng: -73.9851,
-    address: "1275 York Avenue, New York, NY 10065",
-    phone: "(212) 639-2000",
-    website: "https://www.mskcc.org",
-    hours: "24/7",
-    therapies: ["YESCARTA", "KYMRIAH"],
-    description:
-      "Leading cancer treatment center offering advanced CAR-T cell therapies for hematologic malignancies.",
-  },
-  {
-    id: 2,
-    name: "Dana-Farber Cancer Institute",
-    lat: 42.3359,
-    lng: -71.1072,
-    address: "450 Brookline Avenue, Boston, MA 02215",
-    phone: "(617) 632-3000",
-    website: "https://www.dana-farber.org",
-    hours: "Mon-Fri 8AM-5PM",
-    therapies: ["KYMRIAH"],
-    description:
-      "Comprehensive cancer center specializing in pediatric and adult hematologic malignancies.",
-  },
-  {
-    id: 3,
-    name: "MD Anderson Cancer Center",
-    lat: 29.7078,
-    lng: -95.3965,
-    address: "1515 Holcombe Boulevard, Houston, TX 77030",
-    website: "https://www.mdanderson.org",
-    therapies: ["YESCARTA", "KYMRIAH"],
-    description:
-      "Premier cancer treatment facility offering comprehensive CAR-T cell therapy programs.",
-  },
-  {
-    id: 4,
-    name: "Children's Hospital of Philadelphia",
-    lat: 39.946,
-    lng: -75.1914,
-    phone: "(215) 590-1000",
-    website: "https://www.chop.edu",
-    hours: "24/7",
-    therapies: ["KYMRIAH"],
-    description:
-      "Leading pediatric hospital specializing in CAR-T therapy for childhood leukemias and lymphomas.",
-  },
-];
-
 // Custom marker icon
 const createCustomIcon = (): L.Icon => {
   return new L.Icon({
@@ -281,7 +87,19 @@ const createCustomIcon = (): L.Icon => {
   });
 };
 
-export default function TreatmentCenterMapClient() {
+interface TreatmentCenterMapClientProps {
+  therapies: Therapy[];
+  diseases: Disease[];
+  approvals: TherapyApproval[];
+  treatmentCenters: DBTreatmentCenter[];
+}
+
+export default function TreatmentCenterMapClient({ 
+  therapies = [], 
+  diseases = [], 
+  approvals: allApprovals = [],
+  treatmentCenters = []
+}: TreatmentCenterMapClientProps) {
   const [selectedCenter, setSelectedCenter] = useState<TreatmentCenter | null>(
     null
   );
@@ -291,38 +109,31 @@ export default function TreatmentCenterMapClient() {
     40.7505, -73.9851,
   ]);
   const [mapZoom, setMapZoom] = useState<number>(6);
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  
+  // No loading state needed - data comes from props
+  const isLoading = false;
 
   // Mobile responsiveness hook
-  const [isMobile, setIsMobile] = useState(false);
 
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 675);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   // Filter states
   const [selectedTherapies, setSelectedTherapies] = useState<string[]>([]);
   const [selectedDiseases, setSelectedDiseases] = useState<string[]>([]);
 
-  // Create therapy to diseases mapping
+  // Create therapy to diseases mapping using therapy names
   const therapyToDiseases = useMemo(() => {
     const mapping: { [key: string]: string[] } = {};
-    therapyApprovals.forEach((approval) => {
-      if (!mapping[approval.therapy_id]) {
-        mapping[approval.therapy_id] = [];
+    allApprovals.forEach((approval) => {
+      if (!mapping[approval.therapyName]) {
+        mapping[approval.therapyName] = [];
       }
-      if (!mapping[approval.therapy_id].includes(approval.disease_id)) {
-        mapping[approval.therapy_id].push(approval.disease_id);
+      if (!mapping[approval.therapyName].includes(approval.diseaseIndication)) {
+        mapping[approval.therapyName].push(approval.diseaseIndication);
       }
     });
     return mapping;
-  }, []);
+  }, [allApprovals]);
 
   // Filter treatment centers based on selected filters
   const filteredCenters = useMemo(() => {
@@ -332,25 +143,30 @@ export default function TreatmentCenterMapClient() {
         return true;
       }
 
-      // Check if center offers selected therapies
+      // Check if center offers selected therapies (by name)
       const hasSelectedTherapy =
         selectedTherapies.length === 0 ||
-        selectedTherapies.some((therapyId) =>
-          center.therapies.includes(therapyId)
+        selectedTherapies.some((therapyName) =>
+          center.availableTherapies.includes(therapyName)
         );
 
       // Check if center treats selected diseases (through their therapies)
       const hasSelectedDisease =
         selectedDiseases.length === 0 ||
-        selectedDiseases.some((diseaseId) =>
-          center.therapies.some((therapyId) =>
-            therapyToDiseases[therapyId]?.includes(diseaseId)
+        selectedDiseases.some((diseaseName) =>
+          center.availableTherapies.some((therapyName) =>
+            therapyToDiseases[therapyName]?.includes(diseaseName)
           )
         );
 
       return hasSelectedTherapy && hasSelectedDisease;
     });
-  }, [selectedTherapies, selectedDiseases, therapyToDiseases]);
+  }, [
+    selectedTherapies,
+    selectedDiseases,
+    therapyToDiseases,
+    treatmentCenters,
+  ]);
 
   const handleMarkerClick = (center: TreatmentCenter): void => {
     setSelectedCenter(center);
@@ -396,19 +212,19 @@ export default function TreatmentCenterMapClient() {
   };
 
   // Filter toggle handlers
-  const toggleTherapy = (therapyId: string) => {
+  const toggleTherapy = (therapyName: string) => {
     setSelectedTherapies((prev) =>
-      prev.includes(therapyId)
-        ? prev.filter((id) => id !== therapyId)
-        : [...prev, therapyId]
+      prev.includes(therapyName)
+        ? prev.filter((name) => name !== therapyName)
+        : [...prev, therapyName]
     );
   };
 
-  const toggleDisease = (diseaseId: string) => {
+  const toggleDisease = (diseaseName: string) => {
     setSelectedDiseases((prev) =>
-      prev.includes(diseaseId)
-        ? prev.filter((id) => id !== diseaseId)
-        : [...prev, diseaseId]
+      prev.includes(diseaseName)
+        ? prev.filter((name) => name !== diseaseName)
+        : [...prev, diseaseName]
     );
   };
 
@@ -418,56 +234,39 @@ export default function TreatmentCenterMapClient() {
       key: "therapies",
       label: "Therapies",
       options: therapies.map((t) => t.name),
-      selectedValues: selectedTherapies.map(
-        (id) => therapies.find((t) => t.id === id)?.name || id
-      ),
-      onToggle: (therapyName: string) => {
-        const therapy = therapies.find((t) => t.name === therapyName);
-        if (therapy) toggleTherapy(therapy.id);
-      },
+      selectedValues: selectedTherapies,
+      onToggle: toggleTherapy,
     },
     {
       key: "diseases",
       label: "Diseases",
-      options: isMobile 
-        ? diseases.map((d) => d.id)
-        : diseases.map((d) => d.name),
-      selectedValues: selectedDiseases.map((id) => {
-        if (isMobile) {
-          return id;
-        }
-        return diseases.find((d) => d.id === id)?.name || id;
-      }),
-      onToggle: (value: string) => {
-        if (isMobile) {
-          // Value is already the disease ID
-          toggleDisease(value);
-        } else {
-          // Value is disease name, need to find ID
-          const disease = diseases.find((d) => d.name === value);
-          if (disease) toggleDisease(disease.id);
-        }
-      },
+      options: diseases.map((d) => d.indication || d.name),
+      selectedValues: selectedDiseases,
+      onToggle: toggleDisease,
     },
   ];
 
-  // Get therapy names for display
-  const getTherapyName = (therapyId: string): string => {
-    return therapies.find((t) => t.id === therapyId)?.name || therapyId;
-  };
-
   // Get diseases treated by center's therapies
   const getDiseasesForCenter = (center: TreatmentCenter): string[] => {
-    const diseaseIds = new Set<string>();
-    center.therapies.forEach((therapyId) => {
-      therapyToDiseases[therapyId]?.forEach((diseaseId) => {
-        diseaseIds.add(diseaseId);
+    const diseaseNames = new Set<string>();
+    center.availableTherapies.forEach((therapyName) => {
+      therapyToDiseases[therapyName]?.forEach((diseaseName) => {
+        diseaseNames.add(diseaseName);
       });
     });
-    return Array.from(diseaseIds).map(
-      (id) => diseases.find((d) => d.id === id)?.name || id
-    );
+    return Array.from(diseaseNames);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <p>Loading treatment centers...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen w-full">
@@ -495,7 +294,16 @@ export default function TreatmentCenterMapClient() {
 
         {/* Filters */}
         <div className="flex items-start justify-between">
-          <FilterBadges filters={filters} />
+          <div className="flex-1">
+            <FilterBadges filters={filters} />
+            
+            {/* Disease Names Dialog */}
+            <DiseaseNamesDialog 
+              diseases={diseases}
+              className="mt-3"
+            />
+          </div>
+          
           {(selectedTherapies.length > 0 || selectedDiseases.length > 0) && (
             <Button
               variant="outline"
@@ -530,7 +338,7 @@ export default function TreatmentCenterMapClient() {
           {filteredCenters.map((center: TreatmentCenter) => (
             <Marker
               key={center.id}
-              position={[center.lat, center.lng]}
+              position={[parseFloat(center.lat), parseFloat(center.lng)]}
               icon={createCustomIcon()}
               eventHandlers={{
                 click: () => handleMarkerClick(center),
@@ -603,43 +411,31 @@ export default function TreatmentCenterMapClient() {
                       </a>
                     </div>
                   )}
-
-                  {selectedCenter.hours && (
-                    <div className="flex items-center gap-3">
-                      <Clock
-                        size={20}
-                        className="text-blue-600 flex-shrink-0"
-                      />
-                      <span className="text-gray-700 text-sm">
-                        {selectedCenter.hours}
-                      </span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Description */}
-                {selectedCenter.description && (
+                {selectedCenter.about && (
                   <div className="mb-8">
                     <h3 className="font-semibold text-gray-900 mb-3">About</h3>
                     <p className="text-gray-600 text-sm leading-relaxed">
-                      {selectedCenter.description}
+                      {selectedCenter.about}
                     </p>
                   </div>
                 )}
 
                 {/* Available Therapies */}
-                {selectedCenter.therapies.length > 0 && (
+                {selectedCenter.availableTherapies.length > 0 && (
                   <div className="mb-8">
                     <h3 className="font-semibold text-gray-900 mb-4">
                       Available Therapies
                     </h3>
                     <div className="grid gap-3">
-                      {selectedCenter.therapies.map(
-                        (therapyId: string, index: number) => (
+                      {selectedCenter.availableTherapies.map(
+                        (therapyName: string, index: number) => (
                           <div key={index} className="flex items-start gap-3">
                             <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2.5 flex-shrink-0"></div>
                             <span className="text-gray-700 text-sm leading-relaxed">
-                              {getTherapyName(therapyId)}
+                              {therapyName}
                             </span>
                           </div>
                         )

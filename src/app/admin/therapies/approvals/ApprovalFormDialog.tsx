@@ -43,8 +43,8 @@ import { toast } from "react-toastify";
 import { cn } from "@/lib/utils";
 
 const approvalFormSchema = z.object({
-  therapyId: z.string().min(1, "Therapy is required"),
-  diseaseId: z.string().min(1, "Disease is required"),
+  therapyName: z.string().min(1, "Therapy is required"),
+  diseaseIndication: z.string().min(1, "Disease indication is required"),
   region: z.string().min(1, "Region is required"),
   approvalDate: z.date({ required_error: "Approval date is required" }),
   approvalType: z.string().min(1, "Approval type is required"),
@@ -105,8 +105,8 @@ export default function ApprovalFormDialog({
   const form = useForm<ApprovalFormValues>({
     resolver: zodResolver(approvalFormSchema),
     defaultValues: {
-      therapyId: "",
-      diseaseId: "",
+      therapyName: "",
+      diseaseIndication: "",
       region: "",
       approvalDate: undefined,
       approvalType: "",
@@ -146,8 +146,8 @@ export default function ApprovalFormDialog({
   useEffect(() => {
     if (approval) {
       form.reset({
-        therapyId: approval.therapyId,
-        diseaseId: approval.diseaseId,
+        therapyName: approval.therapyName || "",
+        diseaseIndication: approval.diseaseIndication || "",
         region: approval.region,
         approvalDate: new Date(approval.approvalDate),
         approvalType: approval.approvalType,
@@ -193,7 +193,7 @@ export default function ApprovalFormDialog({
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="therapyId"
+                name="therapyName"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Therapy</FormLabel>
@@ -205,7 +205,7 @@ export default function ApprovalFormDialog({
                       </FormControl>
                       <SelectContent>
                         {options?.therapies.map((therapy) => (
-                          <SelectItem key={therapy.id} value={therapy.id}>
+                          <SelectItem key={therapy.name} value={therapy.name}>
                             {therapy.name}
                           </SelectItem>
                         ))}
@@ -217,20 +217,20 @@ export default function ApprovalFormDialog({
               />
               <FormField
                 control={form.control}
-                name="diseaseId"
+                name="diseaseIndication"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Disease</FormLabel>
+                    <FormLabel>Disease Indication</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select disease" />
+                          <SelectValue placeholder="Select disease indication" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {options?.diseases.map((disease) => (
-                          <SelectItem key={disease.id} value={disease.id}>
-                            {disease.name}
+                        {options?.diseaseIndications?.map((indication) => (
+                          <SelectItem key={indication} value={indication}>
+                            {indication}
                           </SelectItem>
                         ))}
                       </SelectContent>

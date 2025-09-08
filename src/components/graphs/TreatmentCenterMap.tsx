@@ -1,4 +1,5 @@
 import dynamic from "next/dynamic";
+import type { Therapy, Disease, TherapyApproval, TreatmentCenter } from "@/lib/db/schema";
 
 const TreatmentCenterMapClient = dynamic(
   () => import("./TreatmentCenterMapClient"),
@@ -17,6 +18,18 @@ const TreatmentCenterMapClient = dynamic(
   }
 );
 
-export default function TreatmentCenterMap() {
-  return <TreatmentCenterMapClient />;
+interface TreatmentCenterMapProps {
+  therapies: Therapy[];
+  diseases: Disease[];
+  approvals: TherapyApproval[];
+  treatmentCenters: TreatmentCenter[];
+}
+
+export default function TreatmentCenterMap({ therapies, diseases, approvals, treatmentCenters }: TreatmentCenterMapProps) {
+  return <TreatmentCenterMapClient 
+    therapies={therapies}
+    diseases={diseases}
+    approvals={approvals}
+    treatmentCenters={treatmentCenters}
+  />;
 }

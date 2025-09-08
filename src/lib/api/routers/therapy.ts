@@ -1,37 +1,47 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "@/lib/db";
 import { therapy, disease, therapyApproval, therapyRevenue } from "@/lib/db/schema";
-import { eq, inArray, and } from "drizzle-orm";
+import { inArray, and } from "drizzle-orm";
 
 export const therapyRouter = createTRPCRouter({
-  // Get all therapies
-  getAllTherapies: publicProcedure.query(async () => {
+  // Get all therapies - protected
+  getAllTherapies: protectedProcedure.query(async () => {
     return await db.select().from(therapy);
   }),
 
-  // Get all diseases
-  getAllDiseases: publicProcedure.query(async () => {
+  // Get all diseases - protected
+  getAllDiseases: protectedProcedure.query(async () => {
     return await db.select().from(disease);
   }),
 
-  // Get all therapy approvals with optional filters
-  getAllTherapyApprovals: publicProcedure
+  // Get all therapy approvals with optional filters - protected
+  getAllTherapyApprovals: protectedProcedure
     .input(z.object({
       therapyIds: z.array(z.string()).optional(),
       diseaseIds: z.array(z.string()).optional(),
+      therapyNames: z.array(z.string()).optional(),
+      diseaseIndications: z.array(z.string()).optional(),
       regions: z.array(z.string()).optional(),
       approvalTypes: z.array(z.string()).optional(),
       regulatoryBodies: z.array(z.string()).optional(),
     }).optional())
     .query(async ({ input }) => {
-      let conditions = [];
+      const conditions = [];
       
+      // Keep backward compatibility with IDs
       if (input?.therapyIds?.length) {
         conditions.push(inArray(therapyApproval.therapyId, input.therapyIds));
       }
       if (input?.diseaseIds?.length) {
         conditions.push(inArray(therapyApproval.diseaseId, input.diseaseIds));
+      }
+      // New filters for names/indications
+      if (input?.therapyNames?.length) {
+        conditions.push(inArray(therapyApproval.therapyName, input.therapyNames));
+      }
+      if (input?.diseaseIndications?.length) {
+        conditions.push(inArray(therapyApproval.diseaseIndication, input.diseaseIndications));
       }
       if (input?.regions?.length) {
         conditions.push(inArray(therapyApproval.region, input.regions));
@@ -50,15 +60,15 @@ export const therapyRouter = createTRPCRouter({
       return await db.select().from(therapyApproval);
     }),
 
-  // Get all therapy revenue data with optional filters
-  getAllTherapyRevenue: publicProcedure
+  // Get all therapy revenue data with optional filters - protected
+  getAllTherapyRevenue: protectedProcedure
     .input(z.object({
       therapyIds: z.array(z.string()).optional(),
       regions: z.array(z.string()).optional(),
       periods: z.array(z.string()).optional(),
     }).optional())
     .query(async ({ input }) => {
-      let conditions = [];
+      const conditions = [];
       
       if (input?.therapyIds?.length) {
         conditions.push(inArray(therapyRevenue.therapyId, input.therapyIds));
@@ -77,8 +87,8 @@ export const therapyRouter = createTRPCRouter({
       return await db.select().from(therapyRevenue);
     }),
 
-  // Get complete dashboard data in one query
-  getDashboardData: publicProcedure.query(async () => {
+  // Get complete dashboard data in one query - protected
+  getDashboardData: protectedProcedure.query(async () => {
     console.log('getDashboardData called on server');
     
     try {

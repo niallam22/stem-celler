@@ -1,5 +1,6 @@
 import CustomTooltip from "@/components/charts/CustomTooltip";
 import VerticalStackedBarChart from "@/components/charts/VerticalStackedBarChart";
+import DiseaseNamesDialog from "@/components/ui/DiseaseNamesDialog";
 
 // Data interfaces
 export interface CostByTherapyData {
@@ -30,19 +31,33 @@ interface CostByTherapyProps {
   filters: FilterConfig[];
   title: string;
   description: string;
+  diseases?: Array<{ id: string; name: string; indication: string | null }>;
 }
 
 
+// Types for tooltip props
+interface TooltipPayloadItem {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface TooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadItem[];
+  label?: string;
+}
+
 // Custom tooltip that shows only the hovered therapy's cost
-const CostTooltipWrapper = ({ active, payload, label }: any) => {
+const CostTooltipWrapper = ({ active, payload, label }: TooltipProps) => {
   if (active && payload && payload.length) {
     // Filter to show only non-zero values (the actual therapy being hovered)
-    const activePayload = payload.filter((item: any) => item.value > 0);
+    const activePayload = payload.filter((item: TooltipPayloadItem) => item.value > 0);
     
     if (activePayload.length > 0) {
       return <CustomTooltip 
         active={active} 
-        payload={activePayload.map((item: any) => ({
+        payload={activePayload.map((item: TooltipPayloadItem) => ({
           name: item.name,
           value: new Intl.NumberFormat("en-US", {
             style: "currency",
@@ -65,7 +80,13 @@ export default function CostByTherapy({
   filters,
   title,
   description,
+  diseases = [],
 }: CostByTherapyProps) {
+  // Disease Names Dialog
+  const diseaseNamesDialog = diseases.length > 0 ? (
+    <DiseaseNamesDialog diseases={diseases} />
+  ) : null;
+
   return (
     <div className="w-full space-y-6">
       <VerticalStackedBarChart
@@ -78,6 +99,8 @@ export default function CostByTherapy({
         customTooltip={CostTooltipWrapper}
         yAxisLabel="Cost per Treatment ($USD, 000s)"
         height={400}
+        showSummaryStats={false}
+        filterAdditionalContent={diseaseNamesDialog}
       />
     </div>
   );

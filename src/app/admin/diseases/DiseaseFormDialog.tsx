@@ -28,6 +28,7 @@ import { toast } from "react-toastify";
 
 const diseaseSchema = z.object({
   name: z.string().min(1, "Name is required"),
+  indication: z.string().optional(),
   category: z.string().min(1, "Category is required"),
   subcategory: z.string().optional(),
   icd10Code: z.string().optional(),
@@ -57,6 +58,7 @@ export default function DiseaseFormDialog({
     resolver: zodResolver(diseaseSchema),
     defaultValues: {
       name: "",
+      indication: "",
       category: "",
       subcategory: "",
       icd10Code: "",
@@ -96,6 +98,7 @@ export default function DiseaseFormDialog({
     if (diseaseData) {
       form.reset({
         name: diseaseData.name,
+        indication: diseaseData.indication || "",
         category: diseaseData.category,
         subcategory: diseaseData.subcategory || "",
         icd10Code: diseaseData.icd10Code || "",
@@ -105,6 +108,7 @@ export default function DiseaseFormDialog({
     } else if (!isEditing) {
       form.reset({
         name: "",
+        indication: "",
         category: "",
         subcategory: "",
         icd10Code: "",
@@ -175,6 +179,20 @@ export default function DiseaseFormDialog({
                     <FormLabel>Disease Name *</FormLabel>
                     <FormControl>
                       <Input placeholder="Enter disease name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="indication"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Indication</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter indication" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

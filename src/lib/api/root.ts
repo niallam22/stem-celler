@@ -4,6 +4,8 @@ import { therapyAdminRouter } from "./routers/admin/therapy.admin";
 import { approvalAdminRouter } from "./routers/admin/approval.admin";
 import { revenueAdminRouter } from "./routers/admin/revenue.admin";
 import { diseaseAdminRouter } from "./routers/admin/disease.admin";
+import { regulatoryBodyAdminRouter } from "./routers/admin/regulatoryBody.admin";
+import { treatmentCenterAdminRouter } from "./routers/admin/treatmentCenter.admin";
 import { documentAdminRouter } from "./routers/admin/document.admin";
 import { extractionAdminRouter } from "./routers/admin/extraction.admin";
 import { queueAdminRouter } from "./routers/admin/queue.admin";
@@ -20,6 +22,8 @@ export const appRouter = createTRPCRouter({
     approval: approvalAdminRouter,
     revenue: revenueAdminRouter,
     disease: diseaseAdminRouter,
+    regulatoryBody: regulatoryBodyAdminRouter,
+    treatmentCenter: treatmentCenterAdminRouter,
     document: documentAdminRouter,
     extraction: extractionAdminRouter,
     queue: queueAdminRouter,

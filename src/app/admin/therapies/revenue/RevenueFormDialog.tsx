@@ -206,7 +206,7 @@ export default function RevenueFormDialog({
                       />
                     </FormControl>
                     <FormDescription>
-                      Format: "Q1 2024" for quarterly or "2024" for annual
+                      Format: &quot;Q1 2024&quot; for quarterly or &quot;2024&quot; for annual
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

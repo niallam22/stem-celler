@@ -216,4 +216,28 @@ export const revenueAdminRouter = createTRPCRouter({
     };
   }),
 
+  bulkCreate: adminProcedure
+    .input(
+      z.object({
+        revenues: z.array(revenueSchema),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const revenuesWithTimestamp = input.revenues.map(revenueData => ({
+        ...revenueData,
+        lastUpdated: new Date(),
+      }));
+
+      const createdRevenues = await db
+        .insert(therapyRevenue)
+        .values(revenuesWithTimestamp)
+        .returning();
+
+      return {
+        success: true,
+        created: createdRevenues.length,
+        revenues: createdRevenues,
+      };
+    }),
+
 });

@@ -15,7 +15,7 @@ export interface LogEntry {
     reportType?: string;
     period?: string;
   };
-  data: any;
+  data: Record<string, unknown>;
   duration?: number;
   metadata?: {
     nodeEnv: string;
@@ -46,7 +46,7 @@ export class AgentLogger {
       process.env.NODE_ENV === 'development' && 
       process.env.AGENT_LOGGING_ENABLED !== 'false';
     
-    this.logLevel = (process.env.AGENT_LOG_LEVEL as any) || 'debug';
+    this.logLevel = (process.env.AGENT_LOG_LEVEL as 'verbose' | 'debug' | 'info') || 'debug';
     this.logDir = process.env.AGENT_LOG_DIR || path.join(process.cwd(), 'logs', 'development');
     this.includeLLMResponses = process.env.AGENT_LOG_LLM_RESPONSES !== 'false';
 
@@ -111,8 +111,8 @@ export class AgentLogger {
     agentName: string,
     input: {
       text?: string;
-      context?: any;
-      parameters?: any;
+      context?: Record<string, unknown>;
+      parameters?: Record<string, unknown>;
     }
   ): Promise<void> {
     if (!this.isEnabled) return;
@@ -140,7 +140,7 @@ export class AgentLogger {
   ): Promise<void> {
     if (!this.isEnabled) return;
 
-    const logData: any = {
+    const logData: Record<string, unknown> = {
       model: llmData.model,
       tokenEstimate: llmData.tokenEstimate,
       duration: llmData.duration,
@@ -165,8 +165,8 @@ export class AgentLogger {
   public async logOutput(
     agentName: string,
     output: {
-      rawResult?: any;
-      parsedResult?: any;
+      rawResult?: Record<string, unknown>;
+      parsedResult?: Record<string, unknown>;
       confidence?: number;
       errors?: string[];
     }
@@ -189,7 +189,7 @@ export class AgentLogger {
     agentName: string,
     operation: string,
     duration: number,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ): Promise<void> {
     if (!this.isEnabled) return;
 
@@ -205,7 +205,7 @@ export class AgentLogger {
   public async logError(
     agentName: string,
     error: Error | string,
-    context?: any
+    context?: Record<string, unknown>
   ): Promise<void> {
     if (!this.isEnabled) return;
 
@@ -226,9 +226,9 @@ export class AgentLogger {
     agentName: string,
     validation: {
       success: boolean;
-      errors?: any[];
-      originalData?: any;
-      validatedData?: any;
+      errors?: unknown[];
+      originalData?: Record<string, unknown>;
+      validatedData?: Record<string, unknown>;
     }
   ): Promise<void> {
     if (!this.isEnabled) return;
@@ -247,7 +247,7 @@ export class AgentLogger {
    */
   public async logMetadata(
     agentName: string,
-    metadata: any
+    metadata: Record<string, unknown>
   ): Promise<void> {
     if (!this.isEnabled) return;
 
@@ -260,7 +260,7 @@ export class AgentLogger {
   private async writeLog(
     agentName: string,
     logType: LogType,
-    data: any,
+    data: Record<string, unknown>,
     duration?: number
   ): Promise<void> {
     if (!this.isEnabled || !this.currentSession) return;
@@ -309,7 +309,7 @@ export class AgentLogger {
     try {
       const existingContent = await fs.readFile(filePath, 'utf-8');
       logs = JSON.parse(existingContent);
-    } catch (error) {
+    } catch {
       // File doesn't exist or is invalid, start with empty array
     }
 
@@ -334,7 +334,7 @@ export class AgentLogger {
     try {
       const existingContent = await fs.readFile(summaryPath, 'utf-8');
       summary = JSON.parse(existingContent);
-    } catch (error) {
+    } catch {
       // File doesn't exist, start with empty array
     }
 

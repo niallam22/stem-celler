@@ -20,20 +20,22 @@ export default function FilterBadges({
   return (
     <div className={`space-y-4 ${className}`}>
       {filters.map((filter) => (
-        <div key={filter.key} className="flex items-center space-x-2">
-          <span className="text-sm font-medium">{filter.label}:</span>
-          {filter.options.map((option) => (
-            <Badge
-              key={option}
-              variant={
-                filter.selectedValues.includes(option) ? "default" : "outline"
-              }
-              className="cursor-pointer"
-              onClick={() => filter.onToggle(option)}
-            >
-              {option}
-            </Badge>
-          ))}
+        <div key={filter.key} className="flex flex-col sm:flex-row sm:items-start gap-2">
+          <span className="text-sm font-medium shrink-0">{filter.label}:</span>
+          <div className="flex flex-wrap gap-2">
+            {filter.options.map((option) => (
+              <Badge
+                key={option}
+                variant={
+                  filter.selectedValues.includes(option) ? "default" : "outline"
+                }
+                className="cursor-pointer"
+                onClick={() => filter.onToggle(option)}
+              >
+                {option}
+              </Badge>
+            ))}
+          </div>
         </div>
       ))}
     </div>

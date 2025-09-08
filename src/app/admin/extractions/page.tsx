@@ -33,30 +33,27 @@ import { Progress } from "@/components/ui/progress";
 import { 
   Search, 
   Eye, 
-  Edit, 
   Check, 
   FileText, 
   ArrowUpDown, 
   ArrowUp, 
   ArrowDown,
-  Activity,
-  DollarSign,
-  CheckCircle2,
   X,
   Trash2
 } from "lucide-react";
 import { toast } from "react-toastify";
-import Link from "next/link";
 import ExtractionReviewDialog from "./ExtractionReviewDialog";
+import { formatDate } from "@/lib/utils/date";
 
 type SortBy = "createdAt" | "updatedAt" | "approvedAt";
 type SortOrder = "asc" | "desc";
+type StatusFilter = "pending" | "approved" | "rejected" | "all";
 
 export default function ExtractionsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("createdAt");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [reviewingExtraction, setReviewingExtraction] = useState<string | null>(null);
@@ -131,7 +128,7 @@ export default function ExtractionsPage() {
 
   const getConfidenceBadge = (confidence: number) => {
     const variant = confidence >= 80 ? "default" : confidence >= 60 ? "secondary" : "destructive";
-    return <Badge variant={variant as any}>{confidence}%</Badge>;
+    return <Badge variant={variant as "default" | "secondary" | "destructive"}>{confidence}%</Badge>;
   };
 
   return (
@@ -161,7 +158,7 @@ export default function ExtractionsPage() {
               </div>
               <Select
                 value={statusFilter}
-                onValueChange={(value) => setStatusFilter(value as any)}
+                onValueChange={(value) => setStatusFilter(value as StatusFilter)}
               >
                 <SelectTrigger className="w-[150px]">
                   <SelectValue />
@@ -251,7 +248,7 @@ export default function ExtractionsPage() {
                         <TableCell>{extraction.document.companyName || "-"}</TableCell>
                         <TableCell>{extraction.document.reportingPeriod || "-"}</TableCell>
                         <TableCell>
-                          {new Date(extraction.createdAt).toLocaleDateString()}
+                          {formatDate(extraction.createdAt)}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -379,7 +376,7 @@ export default function ExtractionsPage() {
                   rejectMutation.mutate({ id: rejectingExtraction });
                 }
               }}
-              disabled={rejectMutation.isLoading}
+              disabled={rejectMutation.isPending}
             >
               Reject
             </Button>
@@ -409,7 +406,7 @@ export default function ExtractionsPage() {
                   deleteMutation.mutate({ id: deletingExtraction });
                 }
               }}
-              disabled={deleteMutation.isLoading}
+              disabled={deleteMutation.isPending}
             >
               Delete
             </Button>

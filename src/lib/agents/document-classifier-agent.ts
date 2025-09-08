@@ -3,7 +3,7 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { z } from "zod";
 import { Document, therapy } from "@/lib/db/schema";
 import { db } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 const DocumentInfoSchema = z.object({
   companyName: z.string().optional(),
@@ -36,19 +36,33 @@ Your task is to extract key metadata from the document text below:
 DOCUMENT TEXT (first 2000 characters):
 {documentText}
 
+REGISTERED COMPANIES IN DATABASE (includes both manufacturers and parent companies):
+{manufacturerList}
+
 CLASSIFICATION REQUIREMENTS:
 1. Company Name: Identify the company that published this report
+   - You MUST ONLY output one of the EXACT registered company names from the list above
+   - IMPORTANT: Some therapies are manufactured by subsidiaries but owned by parent companies
+   - When a parent company exists, prefer mapping to the parent company name
+   - If the company name cannot be mapped to any registered company, output "Not Registered"
+   - DO NOT output any company name that is not in the registered list
 2. Report Type: Determine if this is an "annual" or "quarterly" report
 3. Reporting Period: Extract the specific period (e.g., "Q3 2024", "2024", "Q1 2023")
 
-VALIDATION RULES:
-- Company name must exist in our therapy database (verify against known manufacturers)
-- Report type must be either "annual" or "quarterly"
-- Reporting period should follow standard formats
+IMPORTANT: For company name mapping (prioritize parent companies when they exist):
+- "Bristol Myers Squibb", "BMS", "Bristol-Myers Squibb" → "Bristol Myers Squibb"
+- "Gilead Sciences", "Gilead", "Kite Pharma" → "Gilead" (Kite is a subsidiary of Gilead)
+- "Fosun Kite", "Fosun Kairos" → "Gilead" (joint venture with Gilead as parent)
+- "JW Therapeutics", "JW (Cayman) Therapeutics Co. Ltd.", "JW Cayman" → "JW Therapeutics"
+- "Novartis AG", "Novartis" → "Novartis"
+- "IASO Bio", "IASO Biotherapeutics" → "IASO Bio"
+- "Janssen", "Janssen Pharmaceuticals", "J&J", "Johnson & Johnson" → If "Johnson & Johnson" is in list, use that as parent, else "Janssen"
+- "Autolus", "Autolus Therapeutics" → "Autolus"
+- ONLY output the exact name from the registered list or "Not Registered"
 
 Return your analysis in this JSON format:
 {{
-  "companyName": "Exact company name from document",
+  "companyName": "Exact registered name from the list OR 'Not Registered'",
   "reportType": "annual" or "quarterly",
   "reportingPeriod": "Q3 2024" or "2024"
 }}
@@ -58,19 +72,40 @@ Focus on accuracy over completeness.
 `);
   }
 
-  async classify(pdfText: string, document: Document): Promise<DocumentInfo> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async classify(pdfText: string, _document: Document): Promise<DocumentInfo> {
     console.log("🔍 Document Classifier: Starting classification process...");
 
     try {
-      // Step 1: Extract metadata using LLM
+      // Step 1: Fetch all distinct manufacturers and parent companies from the database
+      const therapyCompanies = await db
+        .select({ 
+          manufacturer: therapy.manufacturer,
+          parentCompany: therapy.parentCompany 
+        })
+        .from(therapy);
+      
+      // Create a unique set of companies (both manufacturers and parent companies)
+      const companySet = new Set<string>();
+      therapyCompanies.forEach(t => {
+        if (t.manufacturer) companySet.add(t.manufacturer);
+        if (t.parentCompany) companySet.add(t.parentCompany);
+      });
+      
+      const companyList = Array.from(companySet).sort().join(", ");
+      
+      console.log("📋 Document Classifier: Registered companies (manufacturers & parent companies):", companyList);
+
+      // Step 2: Extract metadata using LLM with company list
       const prompt = await this.classificationPrompt.format({
         documentText: pdfText.substring(0, 2000),
+        manufacturerList: companyList || "No companies registered",
       });
 
       const response = await this.llm.invoke(prompt);
       const rawResult = this.parseJsonResponse(response.content as string);
       
-      // Step 2: Validate company name against therapy database
+      // Step 3: Validate company name against therapy database
       const validatedCompany = await this.validateCompanyName(rawResult.companyName);
       
       const result: DocumentInfo = {
@@ -108,30 +143,21 @@ Focus on accuracy over completeness.
     if (!companyName) return undefined;
 
     try {
-      // Check if company exists in our therapy database
+      // Check if company exists as either manufacturer or parent company in our therapy database
       const existingTherapies = await db
-        .select({ manufacturer: therapy.manufacturer })
+        .select({ 
+          manufacturer: therapy.manufacturer,
+          parentCompany: therapy.parentCompany 
+        })
         .from(therapy)
-        .where(eq(therapy.manufacturer, companyName))
+        .where(
+          sql`${therapy.manufacturer} = ${companyName} OR ${therapy.parentCompany} = ${companyName}`
+        )
         .limit(1);
 
       if (existingTherapies.length > 0) {
         console.log(`✅ Company "${companyName}" validated against therapy database`);
         return companyName;
-      }
-
-      // Try fuzzy matching for common variations
-      const allManufacturers = await db
-        .selectDistinct({ manufacturer: therapy.manufacturer })
-        .from(therapy);
-
-      const fuzzyMatch = allManufacturers.find(m => 
-        this.fuzzyMatch(companyName, m.manufacturer)
-      );
-
-      if (fuzzyMatch) {
-        console.log(`✅ Company "${companyName}" matched to "${fuzzyMatch.manufacturer}" via fuzzy matching`);
-        return fuzzyMatch.manufacturer;
       }
 
       console.log(`⚠️ Company "${companyName}" not found in therapy database - proceeding with extracted name`);
@@ -141,39 +167,6 @@ Focus on accuracy over completeness.
       console.error("Error validating company name:", error);
       return companyName; // Return original if validation fails
     }
-  }
-
-  private fuzzyMatch(str1: string, str2: string): boolean {
-    // Simple fuzzy matching - check if one string contains the other (case insensitive)
-    const s1 = str1.toLowerCase().trim();
-    const s2 = str2.toLowerCase().trim();
-    
-    return s1.includes(s2) || s2.includes(s1) || 
-           this.levenshteinDistance(s1, s2) <= 2;
-  }
-
-  private levenshteinDistance(str1: string, str2: string): number {
-    const matrix = [];
-    for (let i = 0; i <= str2.length; i++) {
-      matrix[i] = [i];
-    }
-    for (let j = 0; j <= str1.length; j++) {
-      matrix[0][j] = j;
-    }
-    for (let i = 1; i <= str2.length; i++) {
-      for (let j = 1; j <= str1.length; j++) {
-        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-          matrix[i][j] = matrix[i - 1][j - 1];
-        } else {
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1
-          );
-        }
-      }
-    }
-    return matrix[str2.length][str1.length];
   }
 
   private parseDate(dateString: string): Date | undefined {
