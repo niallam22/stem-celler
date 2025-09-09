@@ -26,7 +26,9 @@ import { z } from "zod";
 import { toast } from "react-toastify";
 
 const uploadSchema = z.object({
-  file: z.instanceof(File, { message: "File is required" }),
+  file: z.any().refine((val) => val != null, {
+    message: "File is required",
+  }),
 });
 
 type UploadFormData = z.infer<typeof uploadSchema>;
