@@ -1,9 +1,5 @@
 import { db } from "@/lib/db";
-import { 
-  user as userTable,
-  account,
-  verificationToken 
-} from "@/lib/db/schema";
+import { account, user as userTable, verificationToken } from "@/lib/db/schema";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
 import {
@@ -16,7 +12,10 @@ import GoogleProvider from "next-auth/providers/google";
 import { validateAuthConfig } from "./validate-config";
 
 // Validate configuration on startup
-if (typeof window === "undefined" && process.env.SKIP_AUTH_VALIDATION !== "true") {
+if (
+  typeof window === "undefined" &&
+  process.env.SKIP_AUTH_VALIDATION !== "true"
+) {
   validateAuthConfig();
 }
 
@@ -74,7 +73,7 @@ export const authOptions: NextAuthOptions = {
   adapter: DrizzleAdapter(db, {
     usersTable: userTable,
     accountsTable: account,
-    verificationTokensTable: verificationToken
+    verificationTokensTable: verificationToken,
   }),
   providers: [
     GoogleProvider({
@@ -83,14 +82,14 @@ export const authOptions: NextAuthOptions = {
     }),
     EmailProvider({
       server: {
-        host: "smtp.resend.com",
-        port: 465,
+        host: process.env.EMAIL_SERVER_HOST,
+        port: parseInt(process.env.EMAIL_SERVER_PORT || "587"), // ← Convert to number
         auth: {
-          user: "resend",
+          user: process.env.EMAIL_SERVER_USER,
           pass: process.env.EMAIL_SERVER_PASSWORD,
         },
       },
-      from: process.env.EMAIL_FROM || "onboarding@resend.dev",
+      from: process.env.EMAIL_FROM,
     }),
   ],
   session: {
