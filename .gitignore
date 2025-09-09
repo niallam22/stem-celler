@@ -50,3 +50,6 @@ next-env.d.ts
 claude.md
 
 logs/development/*
+
+# Supabase
+supabase/seed.sql
