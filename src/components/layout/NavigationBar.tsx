@@ -1,8 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { useSession, signOut } from "next-auth/react";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,8 +9,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Moon, Sun, User, LogOut, LayoutDashboard, Dna } from "lucide-react";
+import { LayoutDashboard, LogOut, Moon, Sun, User } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
+import Image from "next/image";
+import Link from "next/link";
+import { useState } from "react";
 
 export default function NavigationBar() {
   const { data: session, status } = useSession();
@@ -29,8 +30,15 @@ export default function NavigationBar() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <Dna className="h-8 w-8 text-cellTeal" />
+          <Link href="/" className="flex items-center space-x-3">
+            <Image
+              src="/cell-genie-logo.png"
+              alt="Cell Genie Logo - DNA helix emerging from a magic lamp"
+              width={40}
+              height={40}
+              className="h-10 w-10"
+              priority
+            />
             <span className="text-xl font-bold bg-gradient-to-r from-cellTeal to-cellPurple bg-clip-text text-transparent">
               Cell Genie
             </span>

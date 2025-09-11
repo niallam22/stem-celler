@@ -9,8 +9,49 @@ import Link from "next/link";
 function SignInContent() {
   const [email, setEmail] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
+  const [isEducationEmail, setIsEducationEmail] = React.useState(false);
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
+
+  // Check if email is from an education provider
+  const checkEducationEmail = (emailValue: string) => {
+    // Common education email patterns for US, UK, EU and other countries
+    const educationPatterns = [
+      /\.edu$/i,                    // US education (.edu)
+      /\.ac\.[a-z]{2}$/i,          // UK education (.ac.uk, .ac.in, etc.)
+      /\.edu\.[a-z]{2}$/i,         // International education (.edu.au, .edu.cn, etc.)
+      /\.uni-[a-z]+\.[a-z]{2,}$/i, // German universities (uni-berlin.de, etc.)
+      /\.univ-[a-z]+\.[a-z]{2,}$/i,// French universities
+      /\.university\.[a-z]{2,}$/i, // Generic university domains
+      /\.college\.[a-z]{2,}$/i,    // College domains
+      /\.school\.[a-z]{2,}$/i,     // School domains
+      /\.k12\.[a-z]{2}$/i,         // K-12 US schools
+      /\.sch\.[a-z]{2}$/i,         // UK schools
+      /\.edu\.(pl|es|it|pt|gr|tr|mx|br|ar)$/i, // Specific country education domains
+      /\.(unam|usp|ufrj|uba|puc)\./i, // Latin American universities
+      /\.(tsinghua|pku|fudan|sjtu|zju)\./i, // Chinese universities
+      /\.ac\.(jp|kr|th|id|my)$/i,  // Asian education domains
+      /\.edu\.(sg|hk|tw)$/i,       // Asian education domains
+      /\.uzh\.ch$/i,               // Swiss universities
+      /\.unibe\.ch$/i,             // Swiss universities
+      /\.ethz\.ch$/i,              // ETH Zurich
+      /\.epfl\.ch$/i,              // EPFL
+      /\.ox\.ac\.uk$/i,            // Oxford
+      /\.cam\.ac\.uk$/i,           // Cambridge
+      /\.harvard\.edu$/i,          // Harvard
+      /\.mit\.edu$/i,              // MIT
+      /\.stanford\.edu$/i,         // Stanford
+    ];
+
+    const isEdu = educationPatterns.some(pattern => pattern.test(emailValue));
+    setIsEducationEmail(isEdu);
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newEmail = e.target.value;
+    setEmail(newEmail);
+    checkEducationEmail(newEmail);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,10 +98,15 @@ function SignInContent() {
                   autoComplete="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={handleEmailChange}
                   className="block w-full rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-3 text-neutral-900 dark:text-white placeholder-neutral-500 dark:placeholder-neutral-400 shadow-sm dark:bg-neutral-800 focus:border-brandBlue-500 dark:focus:border-brandBlue-400 focus:ring-brandBlue-500 dark:focus:ring-brandBlue-400"
                   placeholder="you@example.com"
                 />
+                {isEducationEmail && (
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                    Education providers may block authentication emails. If not received, try other sign-in methods.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -115,7 +161,7 @@ function SignInContent() {
             <p className="text-center text-sm text-neutral-600 dark:text-neutral-400">
               By signing in, you agree to our{" "}
               <Link
-                href="https://example.com/legal"
+                href="/privacy"
                 className="font-medium text-brandBlue-600 dark:text-brandBlue-400 hover:text-brandBlue-500"
               >
                 Privacy Policy

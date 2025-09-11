@@ -122,7 +122,7 @@ export default async function Page() {
         <footer className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-              <div className="col-span-1">
+              <div className="col-span-1 text-center md:text-left">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Cell Genie
                 </h3>
@@ -130,7 +130,7 @@ export default async function Page() {
                   Your cell therapy market intelligence platform.
                 </p>
               </div>
-              <div>
+              <div className="text-center md:text-left">
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
                   Company
                 </h4>
@@ -152,7 +152,7 @@ export default async function Page() {
                   </li>
                 </ul>
               </div>
-              <div>
+              <div className="text-center md:text-left">
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
                   Legal
                 </h4>

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Dna, Globe, TrendingUp } from "lucide-react";
+import { ArrowRight, Globe, TrendingUp } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 
 export default function HeroSection() {
@@ -13,10 +14,19 @@ export default function HeroSection() {
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
-          {/* Badge */}
-          <div className="mb-8 inline-flex items-center rounded-full bg-cellTeal-50 px-4 py-1.5 text-sm font-medium text-cellTeal-700 dark:bg-cellTeal-900/30 dark:text-cellTeal-300">
-            <Dna className="mr-1.5 h-4 w-4" />
-            Cell Genie
+          {/* Logo and Title */}
+          <div className="mb-2 inline-flex items-end justify-center">
+            <Image
+              src="/cell-genie-logo.png"
+              alt="Cell Genie Logo - DNA helix emerging from a magic lamp"
+              width={120}
+              height={120}
+              className="h-30 w-30"
+              priority
+            />
+            <h2 className="text-4xl font-bold bg-gradient-to-r from-cellTeal to-cellPurple bg-clip-text text-transparent -ml-4">
+              Cell Genie
+            </h2>
           </div>
 
           {/* Headline */}

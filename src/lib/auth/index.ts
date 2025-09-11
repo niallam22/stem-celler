@@ -10,6 +10,7 @@ import {
 import EmailProvider from "next-auth/providers/email";
 import GoogleProvider from "next-auth/providers/google";
 import { validateAuthConfig } from "./validate-config";
+import { sendVerificationRequest } from "@/lib/email/sendVerificationRequest";
 
 // Validate configuration on startup
 if (
@@ -90,6 +91,7 @@ export const authOptions: NextAuthOptions = {
         },
       },
       from: process.env.EMAIL_FROM,
+      sendVerificationRequest,
     }),
   ],
   session: {
