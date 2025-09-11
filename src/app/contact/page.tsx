@@ -34,7 +34,7 @@ export default function ContactPage() {
 
           {/* Description */}
           <p className="text-lg text-gray-600 dark:text-gray-400 mb-8 max-w-lg mx-auto">
-            We'd love to hear from you. Reach out for support, inquiries, or
+            We&apos;d love to hear from you. Reach out for support, inquiries, or
             partnership opportunities.
           </p>
 

@@ -101,7 +101,7 @@ export default function PrivacyPage() {
 
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                    Google's Limited Use Requirements
+                    Google&apos;s Limited Use Requirements
                   </h3>
                   <p className="text-gray-600 dark:text-gray-300">
                     Our use of Google user data complies with Google API

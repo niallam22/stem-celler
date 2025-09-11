@@ -68,7 +68,7 @@ export const MagicLinkEmail: React.FC<Readonly<MagicLinkEmailProps>> = ({
           {/* Security notice */}
           <Section style={securityNotice}>
             <Text style={securityText}>
-              <strong>Security Notice:</strong> If you didn't request this
+              <strong>Security Notice:</strong> If you didn&apos;t request this
               email, you can safely ignore it. Only someone with access to your
               email account can use this link to sign in.
             </Text>

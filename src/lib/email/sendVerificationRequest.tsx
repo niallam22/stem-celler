@@ -1,6 +1,7 @@
 import { render } from "@react-email/render";
 import type { SendVerificationRequestParams } from "next-auth/providers/email";
 import nodemailer from "nodemailer";
+import React from "react";
 import { MagicLinkEmail, MagicLinkEmailText } from "./templates/MagicLinkEmail";
 
 export async function sendVerificationRequest({
@@ -21,13 +22,13 @@ export async function sendVerificationRequest({
   const appUrl = process.env.NEXTAUTH_URL || `https://${host}`;
   
   // Generate HTML and text versions using @react-email/render
-  const emailElement = MagicLinkEmail({
-    url,
-    host: appUrl,
-    email: identifier,
-  });
-
-  const htmlBody = await render(emailElement);
+  const htmlBody = await render(
+    <MagicLinkEmail
+      url={url}
+      host={appUrl}
+      email={identifier}
+    />
+  );
 
   const textBody = MagicLinkEmailText({
     url,
