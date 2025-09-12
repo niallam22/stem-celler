@@ -34,7 +34,7 @@ export default function TermsPage() {
                 1. Introduction
               </h2>
               <p className="text-gray-600 dark:text-gray-300">
-                Welcome to Cell Genie. These Terms of Service ("Terms") govern your use of our platform 
+                Welcome to Cell Genie. These Terms of Service (&ldquo;Terms&rdquo;) govern your use of our platform 
                 for commercial and scientific information and analytics services. By accessing or using 
                 Cell Genie, you agree to be bound by these Terms.
               </p>
@@ -186,7 +186,7 @@ export default function TermsPage() {
                     Service Disclaimer
                   </h3>
                   <p className="text-gray-600 dark:text-gray-300">
-                    Cell Genie is provided "as is" and "as available" without warranties of any kind, 
+                    Cell Genie is provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo; without warranties of any kind, 
                     either express or implied. We do not warrant that the service will be uninterrupted, 
                     error-free, or completely secure.
                   </p>
