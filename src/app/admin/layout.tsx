@@ -41,6 +41,11 @@ import { Button } from "@/components/ui/button";
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
+  // Don't render the admin layout for the unauthorized page
+  if (pathname === "/admin/unauthorized") {
+    return <>{children}</>;
+  }
+
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full">
@@ -70,7 +75,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  
+
                   <Collapsible defaultOpen className="group/collapsible">
                     <SidebarMenuItem>
                       <CollapsibleTrigger asChild>
