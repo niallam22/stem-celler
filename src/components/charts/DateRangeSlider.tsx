@@ -50,16 +50,18 @@ export default function DateRangeSlider({
               top: "50%",
               transform: "translateY(-50%)",
             }}
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.preventDefault();
+              const pointerId = e.pointerId;
               const startX = e.clientX;
               const startValue = dateRange[0];
               const rect =
                 e.currentTarget.parentElement!.getBoundingClientRect();
               const width = rect.width - 40; // Account for padding
 
-              const handleMouseMove = (e: MouseEvent) => {
-                const deltaX = e.clientX - startX;
+              const handlePointerMove = (event: PointerEvent) => {
+                if (event.pointerId !== pointerId) return;
+                const deltaX = event.clientX - startX;
                 const deltaValue = Math.round(
                   (deltaX / width) * (periods.length - 1)
                 );
@@ -70,13 +72,16 @@ export default function DateRangeSlider({
                 setDateRange([newValue, Math.max(newValue, dateRange[1])]);
               };
 
-              const handleMouseUp = () => {
-                document.removeEventListener("mousemove", handleMouseMove);
-                document.removeEventListener("mouseup", handleMouseUp);
+              const handlePointerUp = (event: PointerEvent) => {
+                if (event.pointerId !== pointerId) return;
+                window.removeEventListener("pointermove", handlePointerMove);
+                window.removeEventListener("pointerup", handlePointerUp);
+                window.removeEventListener("pointercancel", handlePointerUp);
               };
 
-              document.addEventListener("mousemove", handleMouseMove);
-              document.addEventListener("mouseup", handleMouseUp);
+              window.addEventListener("pointermove", handlePointerMove);
+              window.addEventListener("pointerup", handlePointerUp);
+              window.addEventListener("pointercancel", handlePointerUp);
             }}
           />
 
@@ -90,16 +95,18 @@ export default function DateRangeSlider({
               top: "50%",
               transform: "translateY(-50%)",
             }}
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.preventDefault();
+              const pointerId = e.pointerId;
               const startX = e.clientX;
               const startValue = dateRange[1];
               const rect =
                 e.currentTarget.parentElement!.getBoundingClientRect();
               const width = rect.width - 40; // Account for padding
 
-              const handleMouseMove = (e: MouseEvent) => {
-                const deltaX = e.clientX - startX;
+              const handlePointerMove = (event: PointerEvent) => {
+                if (event.pointerId !== pointerId) return;
+                const deltaX = event.clientX - startX;
                 const deltaValue = Math.round(
                   (deltaX / width) * (periods.length - 1)
                 );
@@ -110,13 +117,16 @@ export default function DateRangeSlider({
                 setDateRange([Math.min(dateRange[0], newValue), newValue]);
               };
 
-              const handleMouseUp = () => {
-                document.removeEventListener("mousemove", handleMouseMove);
-                document.removeEventListener("mouseup", handleMouseUp);
+              const handlePointerUp = (event: PointerEvent) => {
+                if (event.pointerId !== pointerId) return;
+                window.removeEventListener("pointermove", handlePointerMove);
+                window.removeEventListener("pointerup", handlePointerUp);
+                window.removeEventListener("pointercancel", handlePointerUp);
               };
 
-              document.addEventListener("mousemove", handleMouseMove);
-              document.addEventListener("mouseup", handleMouseUp);
+              window.addEventListener("pointermove", handlePointerMove);
+              window.addEventListener("pointerup", handlePointerUp);
+              window.addEventListener("pointercancel", handlePointerUp);
             }}
           />
         </div>
